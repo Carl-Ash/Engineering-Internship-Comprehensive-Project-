@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: code-gen-backend
+server:
+    port: 8080
+    servlet:
+      context-path: /api
+# springdoc-openapi
+springdoc:
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.carl.codegen.controller
+# knife4j setting
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
