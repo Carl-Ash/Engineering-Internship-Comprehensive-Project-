@@ -1,6 +1,11 @@
 spring:
   application:
     name: code-gen-backend
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/code_gen
+    username: root
+    password: root
 server:
     port: 8080
     servlet:
