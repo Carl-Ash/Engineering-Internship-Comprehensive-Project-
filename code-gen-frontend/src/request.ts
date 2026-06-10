@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { message } from 'ant-design-vue'
+import { clearPermissionCache } from '@/access/checkAccess'
 
 // 创建 Axios 实例
 const myAxios = axios.create({
@@ -11,11 +12,9 @@ const myAxios = axios.create({
 // 全局请求拦截器
 myAxios.interceptors.request.use(
   function (config) {
-    // Do something before request is sent
     return config
   },
   function (error) {
-    // Do something with request error
     return Promise.reject(error)
   },
 )
@@ -26,7 +25,6 @@ myAxios.interceptors.response.use(
     const { data } = response
     // 未登录
     if (data.code === 40100) {
-      // 不是获取用户信息的请求，并且用户目前不是已经在用户登录页面，则跳转到登录页面
       if (
         !response.request.responseURL.includes('user/get/login') &&
         !window.location.pathname.includes('/user/login')
@@ -35,11 +33,24 @@ myAxios.interceptors.response.use(
         window.location.href = `/user/login?redirect=${window.location.href}`
       }
     }
+    // 权限不足（后端返回 403）
+    if (data.code === 40300 || data.code === 403) {
+      clearPermissionCache()
+      if (!window.location.pathname.includes('/noAuth')) {
+        message.error('权限不足')
+        window.location.href = '/noAuth'
+      }
+    }
     return response
   },
   function (error) {
-    // Any status codes that falls outside the range of 2xx cause this function to trigger
-    // Do something with response error
+    if (error.response?.status === 403) {
+      clearPermissionCache()
+      if (!window.location.pathname.includes('/noAuth')) {
+        message.error('权限不足')
+        window.location.href = '/noAuth'
+      }
+    }
     return Promise.reject(error)
   },
 )

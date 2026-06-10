@@ -1,4 +1,4 @@
-package com.carl.model.vo;
+package com.carl.codegen.model.vo;
 
 import lombok.Data;
 
@@ -6,13 +6,13 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 登录用户 vo
+ * 脱敏后的用户信息
  */
 @Data
-public class LoginUserVO implements Serializable {
+public class UserVO implements Serializable {
 
     /**
-     * 用户 id
+     * id
      */
     private Long id;
 

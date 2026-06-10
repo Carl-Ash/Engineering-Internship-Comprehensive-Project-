@@ -1,11 +1,11 @@
 package com.carl.codegen.service;
 
-import com.carl.model.dto.UserQueryRequest;
-import com.carl.model.vo.LoginUserVO;
-import com.carl.model.vo.UserVO;
+import com.carl.codegen.model.dto.UserQueryRequest;
+import com.carl.codegen.model.vo.LoginUserVO;
+import com.carl.codegen.model.vo.UserVO;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
-import com.carl.model.entity.User;
+import com.carl.codegen.model.entity.User;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.List;

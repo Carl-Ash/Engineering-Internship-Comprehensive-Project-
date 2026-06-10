@@ -1,4 +1,4 @@
-package com.carl.model.entity;
+package com.carl.codegen.model.entity;
 
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;

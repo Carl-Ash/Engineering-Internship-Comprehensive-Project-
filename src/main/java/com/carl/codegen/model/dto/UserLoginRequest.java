@@ -1,4 +1,4 @@
-package com.carl.model.dto;
+package com.carl.codegen.model.dto;
 
 import lombok.Data;
 

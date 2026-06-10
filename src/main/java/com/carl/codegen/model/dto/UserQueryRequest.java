@@ -1,14 +1,17 @@
-package com.carl.model.dto;
+package com.carl.codegen.model.dto;
 
+import com.carl.codegen.common.PageRequest;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 
 /**
- * 用户更新请求
+ * 用户查询请求
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
-public class UserUpdateRequest implements Serializable {
+public class UserQueryRequest extends PageRequest implements Serializable {
 
     /**
      * id
@@ -21,9 +24,9 @@ public class UserUpdateRequest implements Serializable {
     private String userName;
 
     /**
-     * 用户头像
+     * 账号
      */
-    private String userAvatar;
+    private String userAccount;
 
     /**
      * 简介
@@ -31,7 +34,7 @@ public class UserUpdateRequest implements Serializable {
     private String userProfile;
 
     /**
-     * 用户角色：user/admin
+     * 用户角色：user/admin/ban
      */
     private String userRole;
 
