@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill -9)",
+      "Bash(npx vue-tsc *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(mvn compile *)",
+      "Bash(java -version)",
+      "Bash(mvn --version)",
+      "Bash(mysql *)",
+      "Bash(curl -s http://localhost:8080/api/user/get/login)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['data']['records'][0], indent=2\\)\\)\")"
+    ]
+  }
+}
