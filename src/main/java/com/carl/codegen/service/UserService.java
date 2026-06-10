@@ -1,6 +1,6 @@
 package com.carl.codegen.service;
 
-import com.carl.codegen.model.dto.UserQueryRequest;
+import com.carl.codegen.model.dto.user.UserQueryRequest;
 import com.carl.codegen.model.vo.LoginUserVO;
 import com.carl.codegen.model.vo.UserVO;
 import com.mybatisflex.core.query.QueryWrapper;

@@ -5,7 +5,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
-import com.carl.codegen.model.dto.UserQueryRequest;
+import com.carl.codegen.model.dto.user.UserQueryRequest;
 import com.carl.codegen.model.enums.UserRoleEnum;
 import com.carl.codegen.model.vo.LoginUserVO;
 import com.carl.codegen.model.vo.UserVO;

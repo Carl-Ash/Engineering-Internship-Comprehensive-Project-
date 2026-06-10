@@ -1,4 +1,4 @@
-package com.carl.codegen.model.dto;
+package com.carl.codegen.model.dto.user;
 
 import com.carl.codegen.common.PageRequest;
 import lombok.Data;

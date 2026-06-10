@@ -9,7 +9,7 @@ import com.carl.codegen.constant.UserConstant;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.exception.ThrowUtils;
-import com.carl.codegen.model.dto.*;
+import com.carl.codegen.model.dto.user.*;
 import com.carl.codegen.model.vo.LoginUserVO;
 import com.carl.codegen.model.vo.UserVO;
 import com.mybatisflex.core.paginate.Page;
