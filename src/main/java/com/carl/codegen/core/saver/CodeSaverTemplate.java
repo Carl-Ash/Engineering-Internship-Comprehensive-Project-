@@ -22,14 +22,15 @@ public abstract class CodeSaverTemplate<T> {
      * 保存代码文件的模板方法
      *
      * @param result 代码生成结果
+     * @param appId 应用 id
      * @return 保存的文件目录
      */
     @SuppressWarnings("unchecked")
-    public final File save(T result) {
+    public final File save(T result, Long appId) {
         // 验证输入
         verifyInput(result);
         // 构建唯一目录
-        String parentDir = createOutputDir();
+        String parentDir = createOutputDir(appId);
         // 保存文件，子类实现
         saveFiles(result, parentDir);
         // 返回文件目录
@@ -51,11 +52,15 @@ public abstract class CodeSaverTemplate<T> {
     /**
      * 创建唯一输出目录：OUTPUT_ROOT/type_雪花ID
      *
+     * @param appId 应用 id
      * @return 唯一目录路径
      */
-    protected String createOutputDir() {
+    protected String createOutputDir(Long appId) {
+        if (appId == null) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "应用 id 不能为空");
+        }
         String type = getType().getValue();
-        String uniqueDirName = StrUtil.format("{}_{}", type, IdUtil.getSnowflakeNextIdStr());
+        String uniqueDirName = StrUtil.format("{}_{}", type, appId);
         String dirPath = OUTPUT_ROOT + File.separator + uniqueDirName;
         FileUtil.mkdir(dirPath);
         return dirPath;

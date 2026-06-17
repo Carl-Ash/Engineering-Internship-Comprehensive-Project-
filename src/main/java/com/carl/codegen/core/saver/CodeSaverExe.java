@@ -19,15 +19,14 @@ public class CodeSaverExe {
      *
      * @param result 代码生成结果对象
      * @param type   代码生成类型
+     * @param appId  应用 id
      * @return 保存后的文件对象
      */
-    public static File executeSaver(Object result, CodeGenTypeEnum type) {
+    public static File executeSaver(Object result, CodeGenTypeEnum type, Long appId) {
         return switch (type) {
-            case HTML -> htmlCodeSaver.save((HtmlResult) result);
-            case MULTI_FILE -> multiFileCodeSaver.save((MultiFileResult) result);
+            case HTML -> htmlCodeSaver.save((HtmlResult) result, appId);
+            case MULTI_FILE -> multiFileCodeSaver.save((MultiFileResult) result, appId);
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型: " + type);
         };
     }
-
-
 }

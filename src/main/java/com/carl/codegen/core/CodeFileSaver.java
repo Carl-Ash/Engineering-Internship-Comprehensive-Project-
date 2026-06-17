@@ -5,6 +5,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
+import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
 
 import java.io.File;
@@ -13,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 public class CodeFileSaver {
 
     // 默认输出目录
-    private static final String OUTPUT_ROOT = System.getProperty("user.dir") + "/tmp/code-output";
+    private static final String OUTPUT_ROOT = AppConstant.CODE_OUTPUT_ROOT_DIR;
 
     /**
      * 保存单个代码文件

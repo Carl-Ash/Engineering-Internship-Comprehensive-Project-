@@ -1,10 +1,12 @@
 package com.carl.codegen.service;
 
 import com.carl.codegen.model.dto.app.AppQueryRequest;
+import com.carl.codegen.model.entity.User;
 import com.carl.codegen.model.vo.AppVO;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
 import com.carl.codegen.model.entity.App;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -38,4 +40,20 @@ public interface AppService extends IService<App> {
      */
     QueryWrapper getQueryWrapper(AppQueryRequest appQueryRequest);
 
+    /**
+     * 聊天生成代码
+     * @param appId 应用 id
+     * @param message 用户提示词
+     * @param loginUser 登录用户
+     * @return 实时透传的代码流
+     */
+    Flux<String> chatToGenCode(Long appId, String message, User loginUser);
+
+    /**
+     * 应用部署
+     * @param appId 应用 id
+     * @param loginUser 登录用户
+     * @return 应用部署地址
+     */
+    String deployApp(Long appId, User loginUser);
 }
