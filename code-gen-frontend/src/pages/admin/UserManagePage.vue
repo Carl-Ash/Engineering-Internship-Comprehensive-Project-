@@ -10,7 +10,12 @@
           <a-input v-model:value="searchParams.userName" placeholder="输入用户名" allow-clear />
         </a-form-item>
         <a-form-item label="角色">
-          <a-select v-model:value="searchParams.userRole" placeholder="全部" allow-clear style="width: 130px">
+          <a-select
+            v-model:value="searchParams.userRole"
+            placeholder="全部"
+            allow-clear
+            style="width: 130px"
+          >
             <a-select-option value="superAdmin">超级管理员</a-select-option>
             <a-select-option value="admin">管理员</a-select-option>
             <a-select-option value="user">普通用户</a-select-option>
@@ -30,11 +35,7 @@
             导出
           </a-button>
         </a-tooltip>
-        <a-button
-          v-if="selectedKeys.length > 0"
-          danger
-          @click="showBatchDeleteConfirm"
-        >
+        <a-button v-if="selectedKeys.length > 0" danger @click="showBatchDeleteConfirm">
           批量删除 ({{ selectedKeys.length }})
         </a-button>
       </div>
@@ -65,6 +66,7 @@
         selectedRowKeys: selectedKeys,
         onChange: onSelectChange,
       }"
+      :scroll="{ x: 1300 }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'userAvatar'">
@@ -84,20 +86,21 @@
         </template>
         <template v-else-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" :disabled="!canEdit(record)" @click="doEdit(record)">编辑</a-button>
+            <a-button type="link" :disabled="!canEdit(record)" @click="doEdit(record)"
+              >编辑</a-button
+            >
             <template v-if="isSuperAdmin">
               <a-divider type="vertical" />
-              <a-button
-                type="link"
-                v-if="record.userRole === 'user'"
-                @click="handlePromote(record)"
-              >设为管理员</a-button>
+              <a-button type="link" v-if="record.userRole === 'user'" @click="handlePromote(record)"
+                >设为管理员</a-button
+              >
               <a-button
                 type="link"
                 danger
                 v-if="record.userRole === 'admin'"
                 @click="handleDemote(record)"
-              >撤销管理员</a-button>
+                >撤销管理员</a-button
+              >
             </template>
             <a-divider type="vertical" />
             <a-popconfirm
@@ -106,7 +109,10 @@
               cancel-text="取消"
               @confirm="doDelete(record)"
             >
-              <a-button type="link" danger :disabled="!canDelete(record)">删除</a-button>
+              <a-button type="primary" danger :disabled="!canDelete(record)">
+                <template #icon><DeleteOutlined /></template>
+                删除
+              </a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -159,7 +165,11 @@
           <a-input-password v-model:value="confirmPassword" placeholder="输入密码验证身份" />
         </a-form-item>
         <a-form-item label="操作原因（可选）">
-          <a-textarea v-model:value="confirmReason" placeholder="记录操作原因，便于审计" :rows="2" />
+          <a-textarea
+            v-model:value="confirmReason"
+            placeholder="记录操作原因，便于审计"
+            :rows="2"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -169,7 +179,7 @@
 <script lang="ts" setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { DownloadOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { usePageData } from '@/composables/usePageData'
@@ -223,7 +233,7 @@ const columns = [
   { title: '角色', dataIndex: 'userRole', width: 110 },
   { title: '创建时间', dataIndex: 'createTime', width: 180 },
   { title: '更新时间', dataIndex: 'updateTime', width: 180 },
-  { title: '操作', key: 'action', width: 320 },
+  { title: '操作', key: 'action', width: 380 },
 ]
 
 // ===== 导出 =====
