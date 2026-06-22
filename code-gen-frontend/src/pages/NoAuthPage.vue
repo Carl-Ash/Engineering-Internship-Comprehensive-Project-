@@ -44,9 +44,13 @@ const goBack = () => {
   justify-content: center;
   align-items: center;
   min-height: 60vh;
+  background: var(--bg-page);
 }
 
 .no-auth-content {
   padding: 48px;
+  background: var(--bg-card);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 </style>

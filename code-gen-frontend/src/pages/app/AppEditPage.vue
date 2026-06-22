@@ -48,6 +48,13 @@
             />
           </a-form-item>
 
+          <a-form-item label="可见范围" name="visibility">
+            <a-radio-group v-model:value="formData.visibility">
+              <a-radio value="public">公开</a-radio>
+              <a-radio value="private">私有</a-radio>
+            </a-radio-group>
+          </a-form-item>
+
           <a-form-item label="初始提示词" name="initPrompt">
             <a-textarea
               v-model:value="formData.initPrompt"
@@ -146,6 +153,7 @@ const formData = reactive({
   initPrompt: '',
   codeGenType: '',
   deployKey: '',
+  visibility: 'public',
 })
 
 // 是否为管理员
@@ -174,7 +182,7 @@ const fetchAppInfo = async () => {
 
   loading.value = true
   try {
-    const res = await getAppVoById({ id: id as unknown as number })
+    const res = await getAppVoById({ id })
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
@@ -192,6 +200,7 @@ const fetchAppInfo = async () => {
       formData.initPrompt = appInfo.value.initPrompt || ''
       formData.codeGenType = appInfo.value.codeGenType || ''
       formData.deployKey = appInfo.value.deployKey || ''
+      formData.visibility = appInfo.value.visibility || 'public'
     } else {
       message.error('获取应用信息失败')
       router.push('/')
@@ -225,6 +234,7 @@ const handleSubmit = async () => {
       res = await updateApp({
         id: appInfo.value.id,
         appName: formData.appName,
+        visibility: formData.visibility,
       })
     }
 
@@ -276,9 +286,9 @@ onMounted(() => {
 
 <style scoped>
 #appEditPage {
-  padding: 24px;
   max-width: 1000px;
-  margin: 0 auto;
+  margin: 24px auto;
+  padding: 0 24px;
 }
 
 .page-header {
@@ -291,7 +301,8 @@ onMounted(() => {
 .page-header h1 {
   margin: 0;
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--text-color);
 }
 
 .edit-container {
@@ -301,23 +312,67 @@ onMounted(() => {
 .cover-preview {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-  background: #fafafa;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-page);
 }
 
 .form-tip {
   font-size: 12px;
-  color: #999;
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
+:deep(.ant-card) {
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  border-color: var(--border-color);
+}
+
 :deep(.ant-card-head) {
-  background: #fafafa;
+  background: var(--bg-page);
+  border-bottom-color: var(--border-color);
+  border-radius: 16px 16px 0 0;
+}
+
+:deep(.ant-card-head-title) {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+:deep(.ant-input),
+:deep(.ant-input-number),
+:deep(.ant-select-selector),
+:deep(.ant-textarea) {
+  border-radius: 8px;
+  border-color: var(--border-color);
+  transition: all 0.2s;
+}
+
+:deep(.ant-input):focus,
+:deep(.ant-input-number-focused),
+:deep(.ant-select-focused .ant-select-selector),
+:deep(.ant-textarea):focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.08);
+}
+
+:deep(.ant-btn-primary) {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+:deep(.ant-btn:not(.ant-btn-primary):not(.ant-btn-link)) {
+  border-radius: 8px;
 }
 
 :deep(.ant-descriptions-item-label) {
-  background: #fafafa;
+  background: var(--bg-page);
   font-weight: 500;
+}
+
+:deep(.ant-descriptions) {
+  border-radius: 10px;
+  overflow: hidden;
 }
 </style>

@@ -1,6 +1,6 @@
 import { h } from 'vue'
-import { HomeOutlined } from '@ant-design/icons-vue'
-import { PERMISSION_CODE } from '@/access/accessEnum'
+import { HomeOutlined, AppstoreOutlined } from '@ant-design/icons-vue'
+import { ACCESS_ENUM } from '@/access/accessEnum'
 
 /**
  * 路由权限配置项
@@ -34,8 +34,15 @@ export const routePermissions: RoutePermission[] = [
   {
     path: '/admin/userManage',
     label: '用户管理',
-    permission: PERMISSION_CODE.USER_VIEW,
+    permission: ACCESS_ENUM.ADMIN,
     order: 10,
+  },
+  {
+    path: '/admin/appManage',
+    label: '应用管理',
+    icon: () => h(AppstoreOutlined),
+    permission: ACCESS_ENUM.USER,
+    order: 20,
   },
 ]
 

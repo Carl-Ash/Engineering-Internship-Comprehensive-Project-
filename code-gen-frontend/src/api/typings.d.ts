@@ -41,16 +41,50 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseAppVO = {
+    code?: number
+    data?: AppVO
+    message?: string
+  }
+
+  type BaseResponsePageAppVO = {
+    code?: number
+    data?: PageAppVO
+    message?: string
+  }
+
   type DeleteRequest = {
-    id?: number
+    id?: number | string
   }
 
   type getUserByIdParams = {
-    id: number
+    id: number | string
   }
 
   type getUserVOByIdParams = {
-    id: number
+    id: number | string
+  }
+
+  type getAppVOByIdParams = {
+    id: number | string
+  }
+
+  type getAppVOByIdByAdminParams = {
+    id: number | string
+  }
+
+  type chatToGenCodeParams = {
+    appId: number | string
+    message: string
+  }
+
+  type cancelGenCodeParams = {
+    appId: number | string
+  }
+
+  type rollbackVersionParams = {
+    appId: number | string
+    targetVersion: number
   }
 
   type LoginUserVO = {
@@ -122,7 +156,7 @@ declare namespace API {
   }
 
   type UserUpdateRequest = {
-    id?: number
+    id?: number | string
     userName?: string
     userAvatar?: string
     userProfile?: string
@@ -138,5 +172,77 @@ declare namespace API {
     userRole?: string
     createTime?: string
     updateTime?: string
+  }
+
+  type AppVO = {
+    id?: number
+    appName?: string
+    cover?: string
+    initPrompt?: string
+    codeGenType?: string
+    deployKey?: string
+    deployedTime?: string
+    priority?: number
+    userId?: number
+    genStatus?: string
+    visibility?: string
+    version?: number
+    createTime?: string
+    updateTime?: string
+    user?: UserVO
+  }
+
+  type PageAppVO = {
+    records?: AppVO[]
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
+    optimizeCountQuery?: boolean
+  }
+
+  type AppQueryRequest = {
+    pageNum?: number
+    pageSize?: number
+    sortField?: string
+    sortOrder?: string
+    id?: number
+    appName?: string
+    cover?: string
+    initPrompt?: string
+    codeGenType?: string
+    deployKey?: string
+    priority?: number
+    userId?: number
+    genStatus?: string
+    visibility?: string
+  }
+
+  type AppAddRequest = {
+    initPrompt?: string
+    visibility?: string
+  }
+
+  type AppUpdateRequest = {
+    id?: number | string
+    appName?: string
+    visibility?: string
+  }
+
+  type AppAdminUpdateRequest = {
+    id?: number | string
+    appName?: string
+    cover?: string
+    priority?: number
+  }
+
+  type AppDeployRequest = {
+    appId?: number | string
+  }
+
+  type ServerSentEventString = string
+
+  type serveStaticResourceParams = {
+    deployKey: string
   }
 }

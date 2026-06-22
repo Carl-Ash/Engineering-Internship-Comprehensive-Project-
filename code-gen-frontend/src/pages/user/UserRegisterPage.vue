@@ -1,111 +1,62 @@
 <template>
-  <div class="login-container">
-    <div class="login-wrapper">
-      <div class="login-card">
-        <div class="logo-section">
-          <div class="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
-          <h2 class="title">AI 应用生成</h2>
-          <div class="desc">不写一行代码，生成完整应用</div>
+  <div id="userRegisterPage">
+    <div class="register-card">
+      <div class="card-header">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M19 8v6M22 11h-6"/>
+          </svg>
         </div>
-
-        <a-form
-          :model="formState"
-          name="normal_register"
-          class="login-form"
-          @finish="handleSubmit"
-          @finishFailed="handleFinishFailed"
-        >
-          <a-form-item
-            label="用户账号"
-            name="userAccount"
-            :rules="[{ required: true, message: '请输入账号!' }]"
-          >
-            <a-input v-model:value="formState.userAccount" placeholder="请输入账号" class="input-field">
-              <template #prefix>
-                <UserOutlined class="site-form-item-icon" />
-              </template>
-            </a-input>
-          </a-form-item>
-
-          <a-form-item
-            label="用户密码"
-            name="userPassword"
-            :rules="[
-              { required: true, message: '请输入密码!' },
-              { min: 8, message: '密码不能小于 8 位!' },
-            ]"
-          >
-            <a-input-password v-model:value="formState.userPassword" placeholder="请输入密码" class="input-field">
-              <template #prefix>
-                <LockOutlined class="site-form-item-icon" />
-              </template>
-            </a-input-password>
-          </a-form-item>
-
-          <a-form-item
-            label="确认密码"
-            name="checkPassword"
-            :rules="[
-              { required: true, message: '请确认密码!' },
-              { min: 8, message: '密码不能小于 8 位!' },
-              { validator: validateCheckPassword },
-            ]"
-          >
-            <a-input-password v-model:value="formState.checkPassword" placeholder="请确认密码" class="input-field">
-              <template #prefix>
-                <LockOutlined class="site-form-item-icon" />
-              </template>
-            </a-input-password>
-          </a-form-item>
-
-          <a-form-item>
-            <div class="remember-register">
-              <span class="tips-text">已有账号？</span>
-              <a href="/user/login" class="register-link">去登录</a>
-            </div>
-          </a-form-item>
-
-          <a-form-item>
-            <a-button :disabled="disabled" type="primary" html-type="submit" class="login-form-button">
-              <span class="btn-text">注 册</span>
-            </a-button>
-          </a-form-item>
-        </a-form>
-
-        <div class="footer-tips">
-          <span>注册即表示同意</span>
-          <a href="#" class="link">服务条款</a>
-          <span>和</span>
-          <a href="#" class="link">隐私政策</a>
-        </div>
+        <h2 class="title">AI 应用生成平台</h2>
+        <p class="desc">创建账号，开始生成应用</p>
       </div>
+      <a-form :model="formState" name="basic" autocomplete="off" @finish="handleSubmit">
+        <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
+          <a-input v-model:value="formState.userAccount" placeholder="请输入账号" size="large" />
+        </a-form-item>
+        <a-form-item
+          name="userPassword"
+          :rules="[
+            { required: true, message: '请输入密码' },
+            { min: 8, message: '密码不能小于 8 位' },
+          ]"
+        >
+          <a-input-password v-model:value="formState.userPassword" placeholder="请输入密码" size="large" />
+        </a-form-item>
+        <a-form-item
+          name="checkPassword"
+          :rules="[
+            { required: true, message: '请确认密码' },
+            { min: 8, message: '密码不能小于 8 位' },
+            { validator: validateCheckPassword },
+          ]"
+        >
+          <a-input-password v-model:value="formState.checkPassword" placeholder="请确认密码" size="large" />
+        </a-form-item>
+        <div class="tips">
+          已有账号？
+          <RouterLink to="/user/login">去登录</RouterLink>
+        </div>
+        <a-form-item>
+          <a-button type="primary" html-type="submit" size="large" style="width: 100%" :loading="loading">注册</a-button>
+        </a-form-item>
+      </a-form>
     </div>
   </div>
 </template>
-<script lang="ts" setup>
-defineOptions({ name: 'UserRegisterPage' })
 
-import { reactive, computed } from 'vue'
+<script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { userRegister } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
-import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
-import { userRegister } from '@/api/userController'
+import { reactive, ref } from 'vue'
 
 const router = useRouter()
+const loading = ref(false)
 
-interface FormState {
-  userAccount: string
-  userPassword: string
-  checkPassword: string
-}
-
-const formState = reactive<FormState>({
+const formState = reactive<API.UserRegisterRequest>({
   userAccount: '',
   userPassword: '',
   checkPassword: '',
@@ -119,216 +70,119 @@ const validateCheckPassword = (rule: unknown, value: string, callback: (error?: 
   }
 }
 
-const handleSubmit = async (values: any) => {
-  const res = await userRegister(values)
-  if (res.data.code === 0) {
-    message.success('注册成功')
-    router.push({
-      path: '/user/login',
-      replace: true,
-    })
-  } else {
-    message.error('注册失败，' + res.data.message)
+const handleSubmit = async (values: API.UserRegisterRequest) => {
+  loading.value = true
+  try {
+    const res = await userRegister(values)
+    if (res.data.code === 0) {
+      message.success('注册成功')
+      router.push({
+        path: '/user/login',
+        replace: true,
+      })
+    } else {
+      message.error('注册失败，' + res.data.message)
+    }
+  } finally {
+    loading.value = false
   }
 }
-
-const handleFinishFailed = (errorInfo: any) => {
-  console.log('表单验证失败:', errorInfo)
-}
-
-const disabled = computed(() => {
-  return !(formState.userAccount && formState.userPassword && formState.checkPassword)
-})
 </script>
+
 <style scoped>
-.login-container {
-  width: 700px;
-  height: 600px;
-  overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+#userRegisterPage {
+  min-height: calc(100vh - 64px - 70px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
-  border-radius: 32px;
+  padding: 24px;
+  background:
+    var(--bg-page),
+    radial-gradient(circle at 20% 80%, rgba(var(--primary-color-rgb), 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
 }
 
-.login-wrapper {
+.register-card {
   width: 100%;
-  max-width: 550px;
-}
-
-.login-card {
-  width: auto;
-  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-  border-radius: 24px;
-  padding: 32px 32px 24px;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.8) inset,
-    0 1px 2px rgba(255, 255, 255, 0.6) inset;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  max-width: 420px;
+  background: var(--bg-card);
   backdrop-filter: blur(20px);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
+  border-radius: 20px;
+  padding: 40px 32px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(var(--primary-color-rgb), 0.1);
+  border: 1px solid var(--border-color);
 }
 
-.login-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent 30%,
-    rgba(102, 126, 234, 0.05) 50%,
-    transparent 70%
-  );
-  animation: shimmer 8s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%) rotate(45deg);
-  }
-  100% {
-    transform: translateX(100%) rotate(45deg);
-  }
-}
-
-.logo-section {
+.card-header {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 32px;
 }
 
 .logo-icon {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
   color: #fff;
-  font-size: 28px;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-}
-
-.logo-icon svg {
-  width: 26px;
-  height: 26px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
 }
 
 .title {
   font-size: 24px;
   font-weight: 700;
-  color: #1a1a2e;
-  margin-bottom: 4px;
-  letter-spacing: -0.5px;
+  margin: 0 0 8px;
+  color: var(--text-color);
 }
 
 .desc {
-  font-size: 13px;
-  color: #888;
-}
-
-.login-form {
-  margin-top: 8px;
-}
-
-:deep(.ant-form-item) {
-  margin-bottom: 16px;
-}
-
-.input-field {
-  border-radius: 12px;
-  height: 42px;
+  color: var(--text-secondary);
+  margin: 0;
   font-size: 15px;
-  transition: all 0.3s ease;
 }
 
-.input-field:focus {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.tips {
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: right;
 }
 
-.site-form-item-icon {
-  color: #ccc;
-  font-size: 16px;
+.tips a {
+  color: var(--primary-color);
 }
 
-.remember-register {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.tips-text {
-  font-size: 14px;
-  color: #888;
-}
-
-.register-link {
-  color: #667eea;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.register-link:hover {
-  text-decoration: underline;
-}
-
-.login-form-button {
-  width: 100%;
-  height: 44px;
+:deep(.ant-input-lg),
+:deep(.ant-input-password) {
   border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  transition: all 0.3s;
+}
+
+:deep(.ant-input-lg):focus,
+:deep(.ant-input-password .ant-input):focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+  background: var(--bg-card);
+}
+
+:deep(.ant-btn-primary.ant-btn-lg) {
+  border-radius: 12px;
+  height: 48px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
   border: none;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-  transition: all 0.3s ease;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+  transition: all 0.3s;
 }
 
-.login-form-button:hover:not(:disabled) {
+:deep(.ant-btn-primary.ant-btn-lg):hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-}
-
-.login-form-button:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.login-form-button:disabled {
-  background: #ddd;
-  box-shadow: none;
-}
-
-.btn-text {
-  letter-spacing: 4px;
-}
-
-.footer-tips {
-  text-align: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #eee;
-  font-size: 12px;
-  color: #999;
-}
-
-.footer-tips .link {
-  color: #667eea;
-  text-decoration: none;
-  margin: 0 4px;
-}
-
-.footer-tips .link:hover {
-  text-decoration: underline;
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.4);
 }
 </style>

@@ -1,5 +1,53 @@
 <template>
-  <div id="userManagePage">
+  <PageContainer>
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2 class="page-title">用户管理</h2>
+        <p class="page-desc">管理系统用户，分配角色与权限</p>
+      </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-total">
+          <TeamOutlined />
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ total }}</span>
+          <span class="stat-label">总用户</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-super">
+          <CrownOutlined />
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ superAdminCount }}</span>
+          <span class="stat-label">超级管理员</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-admin">
+          <SafetyCertificateOutlined />
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ adminCount }}</span>
+          <span class="stat-label">管理员</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-user">
+          <UserOutlined />
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ userCount }}</span>
+          <span class="stat-label">普通用户</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 工具栏 -->
     <div class="toolbar">
       <a-form layout="inline" :model="searchParams" @finish="doSearch">
@@ -36,23 +84,11 @@
           </a-button>
         </a-tooltip>
         <a-button v-if="selectedKeys.length > 0" danger @click="showBatchDeleteConfirm">
+          <template #icon><DeleteOutlined /></template>
           批量删除 ({{ selectedKeys.length }})
         </a-button>
       </div>
     </div>
-
-    <!-- 统计条 -->
-    <div class="stat-bar">
-      共 <strong>{{ total }}</strong> 位用户
-      <a-divider type="vertical" />
-      超级管理员 <strong>{{ superAdminCount }}</strong> 位
-      <a-divider type="vertical" />
-      管理员 <strong>{{ adminCount }}</strong> 位
-      <a-divider type="vertical" />
-      普通用户 <strong>{{ userCount }}</strong> 位
-    </div>
-
-    <a-divider style="margin: 12px 0" />
 
     <!-- 表格 -->
     <a-table
@@ -173,23 +209,22 @@
         </a-form-item>
       </a-form>
     </a-modal>
-  </div>
+  </PageContainer>
 </template>
 
 <script lang="ts" setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, DeleteOutlined, TeamOutlined, CrownOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
+import PageContainer from '@/components/PageContainer.vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { usePageData } from '@/composables/usePageData'
-import { usePermission } from '@/composables/usePermission'
 import { ACCESS_ENUM, ROLE_LEVEL } from '@/access/accessEnum'
 import { listUserVoByPage, deleteUser, updateUser } from '@/api/userController'
 import { exportCsv } from '@/utils/exportCsv'
 
 const loginUserStore = useLoginUserStore()
-const { hasPermission } = usePermission()
 
 // ===== 数据 =====
 const {
@@ -422,26 +457,208 @@ const handleConfirmCancel = () => {
 </script>
 
 <style scoped>
+/* 页面标题 */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.page-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* 统计卡片 */
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stat-icon-total {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.stat-icon-super {
+  background: rgba(250, 173, 20, 0.1);
+  color: #faad14;
+}
+
+.stat-icon-admin {
+  background: rgba(245, 34, 45, 0.08);
+  color: #f5222d;
+}
+
+.stat-icon-user {
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-color);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* 工具栏 */
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-page);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 24px;
 }
 
 .toolbar-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
-.stat-bar {
-  margin-top: 8px;
+.toolbar-actions :deep(.ant-btn) {
+  border-radius: 8px;
+}
+
+:deep(.ant-form-inline) {
+  flex-wrap: wrap;
+}
+
+:deep(.ant-form-inline .ant-form-item) {
+  margin-bottom: 8px;
+}
+
+:deep(.ant-input),
+:deep(.ant-select-selector) {
+  border-radius: 8px;
+  border-color: var(--border-color);
+  transition: all 0.2s;
+}
+
+:deep(.ant-input):focus,
+:deep(.ant-select-focused .ant-select-selector) {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.08);
+}
+
+:deep(.ant-btn-primary) {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+:deep(.ant-table) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  background: var(--bg-page);
+  color: var(--text-secondary);
+  font-weight: 600;
   font-size: 13px;
-  color: var(--text-secondary, #8c8c8c);
+  border-bottom: 2px solid var(--border-color);
+  padding: 14px 16px;
 }
 
-.stat-bar strong {
-  color: var(--text-color, #1a1a1a);
+:deep(.ant-table-tbody > tr > td) {
+  vertical-align: middle;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+:deep(.ant-table-tbody > tr:hover > td) {
+  background: var(--bg-page);
+}
+
+:deep(.ant-table-tbody > tr:last-child > td) {
+  border-bottom: none;
+}
+
+:deep(.ant-tag) {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+:deep(.ant-divider) {
+  border-color: var(--border-color);
+}
+
+:deep(.ant-pagination) {
+  margin-top: 20px;
+}
+
+:deep(.ant-pagination .ant-pagination-item-active) {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+}
+
+:deep(.ant-pagination .ant-pagination-item-active a) {
+  color: #fff;
+}
+
+:deep(.ant-btn-sm) {
+  border-radius: 6px;
+}
+
+@media (max-width: 768px) {
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>

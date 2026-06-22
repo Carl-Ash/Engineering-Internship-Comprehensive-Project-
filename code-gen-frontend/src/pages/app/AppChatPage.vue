@@ -1,31 +1,21 @@
 <template>
   <div id="appChatPage">
-    <!-- 顶部栏 -->
     <div class="header-bar">
       <div class="header-left">
         <h1 class="app-name">{{ appInfo?.appName || '网站生成器' }}</h1>
       </div>
       <div class="header-right">
-        <a-button type="default" @click="showAppDetail">
-          <template #icon>
-            <InfoCircleOutlined />
-          </template>
-          应用详情
-        </a-button>
-        <a-button type="primary" @click="deployApp" :loading="deploying">
-          <template #icon>
-            <CloudUploadOutlined />
-          </template>
-          部署按钮
-        </a-button>
+        <a-tag v-if="genStatusTag" :color="genStatusTag.color">{{ genStatusTag.text }}</a-tag>
+        <span v-if="appInfo?.version" class="version-text">v{{ appInfo.version }}</span>
+        <a-button v-if="isOwner || isAdmin" type="default" size="small" @click="showAppDetail">应用详情</a-button>
+        <a-button v-if="isOwner && isGenerating" type="default" danger size="small" @click="stopGeneration">停止生成</a-button>
+        <a-button v-if="isOwner && appInfo?.deployKey" type="default" size="small" @click="undeployApp" :loading="undeploying">下线</a-button>
+        <a-button v-if="isOwner" type="primary" size="small" @click="deployApp" :loading="deploying">部署</a-button>
       </div>
     </div>
 
-    <!-- 主要内容区域 -->
     <div class="main-content">
-      <!-- 左侧对话区域 -->
       <div class="chat-section">
-        <!-- 消息区域 -->
         <div class="messages-container" ref="messagesContainer">
           <div v-for="(message, index) in messages" :key="index" class="message-item">
             <div v-if="message.type === 'user'" class="user-message">
@@ -49,18 +39,19 @@
           </div>
         </div>
 
-        <!-- 用户消息输入框 -->
         <div class="input-container">
           <div class="input-wrapper">
             <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
-              <a-textarea
-                v-model:value="userInput"
-                placeholder="请描述你想生成的网站，越详细效果越好哦"
-                :rows="4"
-                :maxlength="1000"
-                @keydown.enter.prevent="sendMessage"
-                :disabled="isGenerating || !isOwner"
-              />
+              <span>
+                <a-textarea
+                  v-model:value="userInput"
+                  placeholder="请描述你想生成的网站，越详细效果越好哦"
+                  :rows="4"
+                  :maxlength="1000"
+                  @keydown.enter.prevent="sendMessage"
+                  disabled
+                />
+              </span>
             </a-tooltip>
             <a-textarea
               v-else
@@ -87,7 +78,6 @@
         </div>
       </div>
 
-      <!-- 右侧网页展示区域 -->
       <div class="preview-section">
         <div class="preview-header">
           <h3>生成后的网页展示</h3>
@@ -120,7 +110,6 @@
       </div>
     </div>
 
-    <!-- 应用详情弹窗 -->
     <AppDetailModal
       v-model:open="appDetailVisible"
       :app="appInfo"
@@ -129,7 +118,6 @@
       @delete="deleteApp"
     />
 
-    <!-- 部署成功弹窗 -->
     <DeploySuccessModal
       v-model:open="deployModalVisible"
       :deploy-url="deployUrl"
@@ -147,7 +135,12 @@ import {
   getAppVoById,
   deployApp as deployAppApi,
   deleteApp as deleteAppApi,
+  cancelGenCode,
+  undeployApp as undeployAppApi,
 } from '@/api/appController'
+import {
+  CloseCircleFilled,
+} from '@ant-design/icons-vue'
 import { CodeGenTypeEnum } from '@/utils/codeGenTypes'
 import request from '@/request'
 
@@ -158,21 +151,17 @@ import aiAvatar from '@/assets/aiAvatar.png'
 import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
 
 import {
-  CloudUploadOutlined,
   SendOutlined,
   ExportOutlined,
-  InfoCircleOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
 
-// 应用信息
 const appInfo = ref<API.AppVO>()
 const appId = ref<string>()
 
-// 对话相关
 interface Message {
   type: 'user' | 'ai'
   content: string
@@ -183,35 +172,41 @@ const messages = ref<Message[]>([])
 const userInput = ref('')
 const isGenerating = ref(false)
 const messagesContainer = ref<HTMLElement>()
-const hasInitialConversation = ref(false) // 标记是否已经进行过初始对话
+const hasInitialConversation = ref(false)
+const activeEventSource = ref<EventSource | null>(null)
+const activeTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
-// 预览相关
 const previewUrl = ref('')
 const previewReady = ref(false)
 
-// 部署相关
 const deploying = ref(false)
+const undeploying = ref(false)
 const deployModalVisible = ref(false)
 const deployUrl = ref('')
 
-// 权限相关
+const genStatusTag = computed(() => {
+  switch (appInfo.value?.genStatus) {
+    case 'generating': return { color: 'processing', text: '生成中' }
+    case 'completed': return { color: 'success', text: '已完成' }
+    case 'failed': return { color: 'error', text: '生成失败' }
+    default: return null
+  }
+})
+
 const isOwner = computed(() => {
   return appInfo.value?.userId === loginUserStore.loginUser.id
 })
 
 const isAdmin = computed(() => {
-  return loginUserStore.loginUser.userRole === 'admin'
+  return loginUserStore.loginUser.userRole === 'admin' || loginUserStore.loginUser.userRole === 'superAdmin'
 })
 
-// 应用详情相关
 const appDetailVisible = ref(false)
 
-// 显示应用详情
 const showAppDetail = () => {
   appDetailVisible.value = true
 }
 
-// 获取应用信息
 const fetchAppInfo = async () => {
   const id = route.params.id as string
   if (!id) {
@@ -223,14 +218,12 @@ const fetchAppInfo = async () => {
   appId.value = id
 
   try {
-    const res = await getAppVoById({ id: id as unknown as number })
+    const res = await getAppVoById({ id })
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
-      // 检查是否有view=1参数，如果有则不自动发送初始提示词
       const isViewMode = route.query.view === '1'
 
-      // 自动发送初始提示词（除非是查看模式或已经进行过初始对话）
       if (appInfo.value.initPrompt && !isViewMode && !hasInitialConversation.value) {
         hasInitialConversation.value = true
         await sendInitialMessage(appInfo.value.initPrompt)
@@ -246,15 +239,12 @@ const fetchAppInfo = async () => {
   }
 }
 
-// 发送初始消息
 const sendInitialMessage = async (prompt: string) => {
-  // 添加用户消息
   messages.value.push({
     type: 'user',
     content: prompt,
   })
 
-  // 添加AI消息占位符
   const aiMessageIndex = messages.value.length
   messages.value.push({
     type: 'ai',
@@ -263,29 +253,25 @@ const sendInitialMessage = async (prompt: string) => {
   })
 
   await nextTick()
-  scrollToBottom()
+  scrollToBottom(true)
 
-  // 开始生成
   isGenerating.value = true
   await generateCode(prompt, aiMessageIndex)
 }
 
-// 发送消息
 const sendMessage = async () => {
   if (!userInput.value.trim() || isGenerating.value) {
     return
   }
 
-  const message = userInput.value.trim()
+  const msg = userInput.value.trim()
   userInput.value = ''
 
-  // 添加用户消息
   messages.value.push({
     type: 'user',
-    content: message,
+    content: msg,
   })
 
-  // 添加AI消息占位符
   const aiMessageIndex = messages.value.length
   messages.value.push({
     type: 'ai',
@@ -294,107 +280,126 @@ const sendMessage = async () => {
   })
 
   await nextTick()
-  scrollToBottom()
+  scrollToBottom(true)
 
-  // 开始生成
   isGenerating.value = true
-  await generateCode(message, aiMessageIndex)
+  await generateCode(msg, aiMessageIndex)
 }
 
-// 生成代码 - 使用 EventSource 处理流式响应
 const generateCode = async (userMessage: string, aiMessageIndex: number) => {
   let eventSource: EventSource | null = null
   let streamCompleted = false
+  let retryCount = 0
+  let timeoutTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearStream = () => {
+    if (timeoutTimer) { clearTimeout(timeoutTimer); timeoutTimer = null; activeTimeout.value = null }
+    isGenerating.value = false
+    streamCompleted = true
+    eventSource?.close()
+    activeEventSource.value = null
+  }
 
   try {
-    // 获取 axios 配置的 baseURL
     const baseURL = request.defaults.baseURL || API_BASE_URL
 
-    // 构建URL参数
     const params = new URLSearchParams({
       appId: appId.value || '',
       message: userMessage,
     })
 
     const url = `${baseURL}/app/chat/gen/code?${params}`
+    console.log('[SSE] 连接地址:', url)
 
-    // 创建 EventSource 连接
     eventSource = new EventSource(url, {
       withCredentials: true,
     })
+    activeEventSource.value = eventSource
 
     let fullContent = ''
 
-    // 处理接收到的消息
+    // 60秒无数据超时
+    const resetTimeout = () => {
+      if (timeoutTimer) clearTimeout(timeoutTimer)
+      timeoutTimer = setTimeout(() => {
+        if (!streamCompleted) {
+          console.error('[SSE] 数据接收超时')
+          clearStream()
+          handleError(new Error('SSE 响应超时，请重试'), aiMessageIndex)
+        }
+      }, 60000)
+    }
+    resetTimeout()
+
+    eventSource.onopen = function () {
+      console.log('[SSE] 连接已建立')
+      retryCount = 0
+    }
+
     eventSource.onmessage = function (event) {
       if (streamCompleted) return
 
       try {
-        // 解析JSON包装的数据
         const parsed = JSON.parse(event.data)
-        const content = parsed.d
+        const content = parsed.v
 
-        // 拼接内容
         if (content !== undefined && content !== null) {
           fullContent += content
-          messages.value[aiMessageIndex].content = fullContent
-          messages.value[aiMessageIndex].loading = false
+          const msgItem = messages.value[aiMessageIndex]
+          if (msgItem) {
+            msgItem.content = fullContent
+            msgItem.loading = false
+          }
+          resetTimeout()
           scrollToBottom()
         }
-      } catch (error) {
-        console.error('解析消息失败:', error)
-        handleError(error, aiMessageIndex)
+      } catch {
+        console.warn('[SSE] 收到非 JSON 数据:', event.data)
       }
     }
 
-    // 处理done事件
-    eventSource.addEventListener('done', function () {
+    eventSource.addEventListener('complete', function () {
       if (streamCompleted) return
+      console.log('[SSE] 收到 complete 事件，流结束')
+      clearStream()
 
-      streamCompleted = true
-      isGenerating.value = false
-      eventSource?.close()
-
-      // 延迟更新预览，确保后端已完成处理
       setTimeout(async () => {
         await fetchAppInfo()
         updatePreview()
       }, 1000)
     })
 
-    // 处理错误
     eventSource.onerror = function () {
       if (streamCompleted || !isGenerating.value) return
-      // 检查是否是正常的连接关闭
-      if (eventSource?.readyState === EventSource.CONNECTING) {
-        streamCompleted = true
-        isGenerating.value = false
-        eventSource?.close()
 
-        setTimeout(async () => {
-          await fetchAppInfo()
-          updatePreview()
-        }, 1000)
-      } else {
-        handleError(new Error('SSE连接错误'), aiMessageIndex)
+      retryCount++
+      console.warn(`[SSE] 连接错误 (第${retryCount}次), readyState=${eventSource?.readyState}`)
+
+      // EventSource 会自动重连（readyState=0 CONNECTING），只在彻底关闭时显示错误
+      if (eventSource?.readyState === EventSource.CLOSED) {
+        console.error('[SSE] 连接已关闭，停止重试')
+        clearStream()
+        handleError(new Error('SSE 连接失败，请检查后端服务'), aiMessageIndex)
       }
+      // readyState === CONNECTING 时浏览器会自动重连，不干预
     }
   } catch (error) {
-    console.error('创建 EventSource 失败：', error)
+    console.error('[SSE] 创建连接失败：', error)
     handleError(error, aiMessageIndex)
   }
 }
 
-// 错误处理函数
 const handleError = (error: unknown, aiMessageIndex: number) => {
   console.error('生成代码失败：', error)
-  messages.value[aiMessageIndex].content = '抱歉，生成过程中出现了错误，请重试。'
-  messages.value[aiMessageIndex].loading = false
+  const msgItem = messages.value[aiMessageIndex]
+  if (msgItem) {
+    msgItem.content = '抱歉，生成过程中出现了错误，请重试。'
+    msgItem.loading = false
+  }
   message.error('生成失败，请重试')
   isGenerating.value = false
 }
 
-// 更新预览
 const updatePreview = () => {
   if (appId.value) {
     const codeGenType = appInfo.value?.codeGenType || CodeGenTypeEnum.HTML
@@ -404,14 +409,42 @@ const updatePreview = () => {
   }
 }
 
-// 滚动到底部
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+const scrollToBottom = (force = false) => {
+  const el = messagesContainer.value
+  if (!el) return
+  // 只在用户接近底部时才自动滚动（距离底部 150px 以内），避免滚动劫持
+  const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+  if (force || isNearBottom) {
+    el.scrollTop = el.scrollHeight
   }
 }
 
-// 部署应用
+const stopGeneration = async () => {
+  if (!appId.value) return
+  try {
+    await cancelGenCode({ appId: appId.value })
+    message.info('已发送停止信号')
+  } catch {
+    message.error('停止失败')
+  }
+}
+
+const undeployApp = async () => {
+  if (!appId.value) return
+  undeploying.value = true
+  try {
+    const res = await undeployAppApi({ appId: appId.value })
+    if (res.data.code === 0) {
+      message.success('已下线')
+      await fetchAppInfo()
+    }
+  } catch {
+    message.error('下线失败')
+  } finally {
+    undeploying.value = false
+  }
+}
+
 const deployApp = async () => {
   if (!appId.value) {
     message.error('应用ID不存在')
@@ -421,7 +454,7 @@ const deployApp = async () => {
   deploying.value = true
   try {
     const res = await deployAppApi({
-      appId: appId.value as unknown as number,
+      appId: appId.value,
     })
 
     if (res.data.code === 0 && res.data.data) {
@@ -439,33 +472,28 @@ const deployApp = async () => {
   }
 }
 
-// 在新窗口打开预览
 const openInNewTab = () => {
   if (previewUrl.value) {
     window.open(previewUrl.value, '_blank')
   }
 }
 
-// 打开部署的网站
 const openDeployedSite = () => {
   if (deployUrl.value) {
     window.open(deployUrl.value, '_blank')
   }
 }
 
-// iframe加载完成
 const onIframeLoad = () => {
   previewReady.value = true
 }
 
-// 编辑应用
 const editApp = () => {
   if (appInfo.value?.id) {
     router.push(`/app/edit/${appInfo.value.id}`)
   }
 }
 
-// 删除应用
 const deleteApp = async () => {
   if (!appInfo.value?.id) return
 
@@ -484,14 +512,15 @@ const deleteApp = async () => {
   }
 }
 
-// 页面加载时获取应用信息
 onMounted(() => {
   fetchAppInfo()
 })
 
-// 清理资源
 onUnmounted(() => {
-  // EventSource 会在组件卸载时自动清理
+  if (activeTimeout.value) { clearTimeout(activeTimeout.value); activeTimeout.value = null }
+  activeEventSource.value?.close()
+  activeEventSource.value = null
+  isGenerating.value = false
 })
 </script>
 
@@ -500,16 +529,22 @@ onUnmounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  background: #fdfdfd;
+  padding: 10px;
+  background:
+    linear-gradient(180deg, var(--bg-page) 0%, var(--bg-card) 100%),
+    radial-gradient(circle at 20% 80%, var(--primary-color) 0%, transparent 15%),
+    radial-gradient(circle at 80% 20%, var(--hero-gradient-mid) 0%, transparent 12%);
 }
 
-/* 顶部栏 */
 .header-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 16px;
+  background: var(--bg-header);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
 }
 
 .header-left {
@@ -522,32 +557,31 @@ onUnmounted(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-color);
 }
 
 .header-right {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
-/* 主要内容区域 */
 .main-content {
   flex: 1;
   display: flex;
-  gap: 16px;
-  padding: 8px;
+  gap: 10px;
+  padding-top: 10px;
   overflow: hidden;
 }
 
-/* 左侧对话区域 */
 .chat-section {
   flex: 2;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
   overflow: hidden;
+  border: 1px solid var(--border-color);
 }
 
 .messages-container {
@@ -558,107 +592,149 @@ onUnmounted(() => {
 }
 
 .message-item {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .user-message {
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .ai-message {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .message-content {
-  max-width: 70%;
+  max-width: 75%;
   padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.5;
+  border-radius: 16px;
+  line-height: 1.6;
   word-wrap: break-word;
+  position: relative;
 }
 
 .user-message .message-content {
-  background: #1890ff;
-  color: white;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--hero-gradient-end) 100%);
+  color: #fff;
+  border-bottom-right-radius: 4px;
 }
 
 .ai-message .message-content {
-  background: #f5f5f5;
-  color: #1a1a1a;
-  padding: 8px 12px;
+  background: var(--bg-page);
+  color: var(--text-color);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--border-color);
 }
 
 .message-avatar {
   flex-shrink: 0;
 }
 
+.message-avatar :deep(.ant-avatar) {
+  border: 2px solid var(--border-color);
+}
+
 .loading-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #666;
+  gap: 10px;
+  color: var(--text-secondary);
+  padding: 8px 0;
 }
 
-/* 输入区域 */
 .input-container {
-  padding: 16px;
-  background: white;
+  padding: 12px 16px;
+  background: var(--bg-header);
+  border-top: 1px solid var(--border-color);
 }
 
 .input-wrapper {
   position: relative;
 }
 
-.input-wrapper .ant-input {
-  padding-right: 50px;
+.input-wrapper :deep(.ant-input) {
+  padding-right: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-page);
+  color: var(--text-color);
+  transition: all 0.3s;
+}
+
+.input-wrapper :deep(.ant-input)::placeholder {
+  color: var(--text-secondary);
+}
+
+.input-wrapper :deep(.ant-input):focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+  background: var(--bg-card);
 }
 
 .input-actions {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  bottom: 6px;
+  right: 6px;
 }
 
-/* 右侧预览区域 */
+.input-actions .ant-btn-primary {
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  transition: all 0.3s;
+}
+
+.input-actions .ant-btn-primary:hover {
+  transform: scale(1.08);
+}
+
 .preview-section {
   flex: 3;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
   overflow: hidden;
+  border: 1px solid var(--border-color);
 }
 
 .preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e8e8e8;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-header);
 }
 
 .preview-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text-color);
 }
 
 .preview-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .preview-content {
   flex: 1;
   position: relative;
   overflow: hidden;
+  background: var(--bg-page);
 }
 
 .preview-placeholder {
@@ -667,12 +743,18 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .placeholder-icon {
-  font-size: 48px;
+  font-size: 56px;
   margin-bottom: 16px;
+  animation: floatIcon 3s ease-in-out infinite;
+}
+
+@keyframes floatIcon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .preview-loading {
@@ -681,11 +763,12 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .preview-loading p {
   margin-top: 16px;
+  font-size: 14px;
 }
 
 .preview-iframe {
@@ -694,12 +777,10 @@ onUnmounted(() => {
   border: none;
 }
 
-/* 响应式设计 */
 @media (max-width: 1024px) {
   .main-content {
     flex-direction: column;
   }
-
   .chat-section,
   .preview-section {
     flex: none;
@@ -708,21 +789,28 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  #appChatPage {
+    padding: 6px;
+  }
   .header-bar {
-    padding: 12px 16px;
+    padding: 8px 12px;
   }
-
   .app-name {
-    font-size: 16px;
+    font-size: 15px;
   }
-
   .main-content {
-    padding: 8px;
-    gap: 8px;
+    padding-top: 6px;
+    gap: 6px;
   }
-
   .message-content {
     max-width: 85%;
+    padding: 10px 14px;
+  }
+  .messages-container {
+    padding: 12px;
+  }
+  .input-container {
+    padding: 10px 12px;
   }
 }
 </style>

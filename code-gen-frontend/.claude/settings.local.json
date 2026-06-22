@@ -12,7 +12,20 @@
       "Bash(mysql *)",
       "Bash(curl -s http://localhost:8080/api/user/get/login)",
       "Bash(curl *)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['data']['records'][0], indent=2\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['data']['records'][0], indent=2\\)\\)\")",
+      "Bash(npm list *)",
+      "Bash(npm view *)",
+      "WebSearch",
+      "WebFetch(domain:router.vuejs.org)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(rm -rf node_modules/.vite)",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $5}')",
+      "Bash(timeout 5 npx kill-port 5178)",
+      "Bash(dir \"C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\\\\tmp\\\\deploy\")",
+      "Bash(dir C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\\\\tmp\\\\deploy\\\\EcYmsz\\\\ *)"
     ]
   }
 }

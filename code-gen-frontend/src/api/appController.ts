@@ -166,3 +166,39 @@ export async function updateApp(body: API.AppUpdateRequest, options?: { [key: st
     ...(options || {}),
   })
 }
+
+/** 停止 AI 生成 POST /app/chat/gen/cancel */
+export async function cancelGenCode(
+  params: API.cancelGenCodeParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseString>('/app/chat/gen/cancel', {
+    method: 'POST',
+    params: { ...params },
+    ...(options || {}),
+  })
+}
+
+/** 取消部署（下线） POST /app/undeploy */
+export async function undeployApp(body: API.AppDeployRequest, options?: { [key: string]: any }) {
+  return request<API.BaseResponseString>('/app/undeploy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 版本回退 POST /app/version/rollback */
+export async function rollbackVersion(
+  params: API.rollbackVersionParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseString>('/app/version/rollback', {
+    method: 'POST',
+    params: { ...params },
+    ...(options || {}),
+  })
+}

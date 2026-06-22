@@ -1,30 +1,41 @@
 import { useLoginUserStore } from '@/stores/loginUser'
 import { message } from 'ant-design-vue'
 import router from '@/router'
-import { ROLE_LEVEL } from '@/access/accessEnum'
 
-// 是否为首次获取登录用户
 let firstFetchLoginUser = true
 
-/**
- * 全局权限校验
- */
 router.beforeEach(async (to, from, next) => {
   const loginUserStore = useLoginUserStore()
   let loginUser = loginUserStore.loginUser
-  // 确保页面刷新，首次加载时，能够等后端返回用户信息后再校验权限
+
   if (firstFetchLoginUser) {
-    await loginUserStore.fetchLoginUser()
-    loginUser = loginUserStore.loginUser
+    try {
+      await loginUserStore.fetchLoginUser()
+      loginUser = loginUserStore.loginUser
+    } catch {
+      // 后端未启动时允许免登录访问
+    }
     firstFetchLoginUser = false
   }
+
   const toUrl = to.fullPath
-  if (toUrl.startsWith('/admin')) {
-    if (!loginUser || (ROLE_LEVEL[loginUser.userRole] ?? -1) < ROLE_LEVEL.admin) {
+
+  // 用户管理：仅管理员和超级管理员
+  if (toUrl.startsWith('/admin/userManage')) {
+    if (!loginUser || (loginUser.userRole !== 'admin' && loginUser.userRole !== 'superAdmin')) {
       message.error('没有权限')
       next(`/user/login?redirect=${to.fullPath}`)
       return
     }
   }
+
+  // 应用管理、对话、编辑：需要登录
+  if (toUrl.startsWith('/admin/appManage') || toUrl.startsWith('/app/chat') || toUrl.startsWith('/app/edit')) {
+    if (!loginUser || !loginUser.userRole || loginUser.userRole === 'notLogin') {
+      next(`/user/login?redirect=${to.fullPath}`)
+      return
+    }
+  }
+
   next()
 })

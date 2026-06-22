@@ -83,7 +83,7 @@ const handleClose = () => {
 
 .deploy-success p {
   margin: 0 0 24px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .deploy-url {

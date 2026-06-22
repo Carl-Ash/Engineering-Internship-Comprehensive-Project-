@@ -59,6 +59,21 @@ public class AppVO implements Serializable {
     private Long userId;
 
     /**
+     * 生成状态：none / generating / completed / failed
+     */
+    private String genStatus;
+
+    /**
+     * 可见范围：public / private
+     */
+    private String visibility;
+
+    /**
+     * 当前版本号
+     */
+    private Integer version;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

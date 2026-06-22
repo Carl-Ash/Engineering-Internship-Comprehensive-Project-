@@ -9,31 +9,47 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.HandlerMapping;
 
 import java.io.File;
 
 @RestController
-@RequestMapping("/static")
 public class StaticResourceController {
 
-    // 应用生成根目录（用于浏览）
+    // 应用生成根目录（用于预览）
     private static final String PREVIEW_ROOT_DIR = AppConstant.CODE_OUTPUT_ROOT_DIR;
+    // 应用部署根目录
+    private static final String DEPLOY_ROOT_DIR = AppConstant.CODE_DEPLOY_ROOT_DIR;
 
     /**
-     * 提供静态资源访问，支持目录重定向
+     * 提供预览静态资源访问
      * 访问格式：http://localhost:8080/api/static/{deployKey}[/{fileName}]
      */
-    @GetMapping("/{deployKey}/**")
+    @GetMapping("/static/{deployKey}/**")
     public ResponseEntity<Resource> serveStaticResource(
             @PathVariable String deployKey,
             HttpServletRequest request) {
+        return serveResource(deployKey, request, PREVIEW_ROOT_DIR, "/static/");
+    }
+
+    /**
+     * 提供部署静态资源访问
+     * 访问格式：http://localhost:8080/api/deploy/{deployKey}[/{fileName}]
+     */
+    @GetMapping("/deploy/{deployKey}/**")
+    public ResponseEntity<Resource> serveDeployResource(
+            @PathVariable String deployKey,
+            HttpServletRequest request) {
+        return serveResource(deployKey, request, DEPLOY_ROOT_DIR, "/deploy/");
+    }
+
+    private ResponseEntity<Resource> serveResource(String deployKey, HttpServletRequest request,
+                                                    String rootDir, String prefix) {
         try {
             // 获取资源路径
             String resourcePath = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
-            resourcePath = resourcePath.substring(("/static/" + deployKey).length());
+            resourcePath = resourcePath.substring((prefix + deployKey).length());
             // 如果是目录访问（不带斜杠），重定向到带斜杠的URL
             if (resourcePath.isEmpty()) {
                 HttpHeaders headers = new HttpHeaders();
@@ -45,7 +61,7 @@ public class StaticResourceController {
                 resourcePath = "/index.html";
             }
             // 构建文件路径
-            String filePath = PREVIEW_ROOT_DIR + "/" + deployKey + resourcePath;
+            String filePath = rootDir + "/" + deployKey + resourcePath;
             File file = new File(filePath);
             // 检查文件是否存在
             if (!file.exists()) {

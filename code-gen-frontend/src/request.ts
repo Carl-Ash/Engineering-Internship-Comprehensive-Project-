@@ -1,10 +1,11 @@
 import axios from 'axios'
 import { message } from 'ant-design-vue'
 import { clearPermissionCache } from '@/access/checkAccess'
+import router from '@/router'
 
 // 创建 Axios 实例
 const myAxios = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
   timeout: 60000,
   withCredentials: true,
 })
@@ -30,7 +31,7 @@ myAxios.interceptors.response.use(
         !window.location.pathname.includes('/user/login')
       ) {
         message.warning('请先登录')
-        window.location.href = `/user/login?redirect=${window.location.href}`
+        router.push(`/user/login?redirect=${encodeURIComponent(window.location.href)}`)
       }
     }
     // 权限不足（后端返回 403）
@@ -38,7 +39,7 @@ myAxios.interceptors.response.use(
       clearPermissionCache()
       if (!window.location.pathname.includes('/noAuth')) {
         message.error('权限不足')
-        window.location.href = '/noAuth'
+        router.push('/noAuth')
       }
     }
     return response
@@ -48,7 +49,7 @@ myAxios.interceptors.response.use(
       clearPermissionCache()
       if (!window.location.pathname.includes('/noAuth')) {
         message.error('权限不足')
-        window.location.href = '/noAuth'
+        router.push('/noAuth')
       }
     }
     return Promise.reject(error)

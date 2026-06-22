@@ -5,8 +5,8 @@
       <a-col flex="200px">
         <RouterLink to="/">
           <div class="header-left">
-            <img class="logo" src="@/assets/logo.svg" alt="Logo" />
-            <h1 class="site-title">代码生成</h1>
+            <img class="logo" src="@/assets/logo.png" alt="Logo" />
+            <h1 class="site-title">AI 应用生成平台</h1>
           </div>
         </RouterLink>
       </a-col>
@@ -24,20 +24,17 @@
         <div class="user-login-status">
           <div v-if="loginUserStore.loginUser.id">
             <a-dropdown>
-              <a-space class="user-dropdown-trigger">
-                <a-avatar :size="32" :src="loginUserStore.loginUser.userAvatar">
-                  <template #icon><UserOutlined /></template>
-                </a-avatar>
-                <span>{{ loginUserStore.loginUser.userName ?? '无名' }}</span>
+              <a-space>
+                <a-avatar :src="loginUserStore.loginUser.userAvatar" />
+                {{ loginUserStore.loginUser.userName ?? '无名' }}
               </a-space>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="settings" @click="goToSettings">
+                  <a-menu-item @click="doSettings">
                     <SettingOutlined />
-                    个人设置
+                    个人信息
                   </a-menu-item>
-                  <a-menu-divider />
-                  <a-menu-item key="logout" @click="doLogout">
+                  <a-menu-item @click="doLogout">
                     <LogoutOutlined />
                     退出登录
                   </a-menu-item>
@@ -55,46 +52,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter, RouterLink } from 'vue-router'
-import type { MenuProps } from 'ant-design-vue'
-import { message } from 'ant-design-vue'
-import {
-  LogoutOutlined,
-  SettingOutlined,
-  UserOutlined,
-} from '@ant-design/icons-vue'
+import { computed, h, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { type MenuProps, message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser.ts'
-import { userLogout } from '@/api/userController'
-import checkAccess from '@/access/checkAccess'
-import { getVisibleMenus } from '@/config/permission.config'
+import { userLogout } from '@/api/userController.ts'
+import { LogoutOutlined, HomeOutlined, SettingOutlined } from '@ant-design/icons-vue'
 
 const loginUserStore = useLoginUserStore()
 const router = useRouter()
-
+// 当前选中菜单
 const selectedKeys = ref<string[]>(['/'])
-
-router.afterEach((to) => {
+// 监听路由变化，更新当前选中菜单
+router.afterEach((to, from, next) => {
   selectedKeys.value = [to.path]
 })
 
-// 从 permission.config 生成菜单
-const menuItems = computed(() => {
-  return getVisibleMenus((perm) => checkAccess(loginUserStore.loginUser, perm))
-})
+// 菜单配置项
+const originItems = [
+  {
+    key: '/',
+    icon: () => h(HomeOutlined),
+    label: '主页',
+    title: '主页',
+  },
+  {
+    key: '/admin/userManage',
+    label: '用户管理',
+    title: '用户管理',
+  },
+  {
+    key: '/admin/appManage',
+    label: '应用管理',
+    title: '应用管理',
+  },
+]
 
+// 过滤菜单项
+const filterMenus = (menus = [] as MenuProps['items']) => {
+  return menus?.filter((menu) => {
+    const menuKey = menu?.key as string
+    // 用户管理仅管理员可见
+    if (menuKey === '/admin/userManage') {
+      const loginUser = loginUserStore.loginUser
+      if (!loginUser || (loginUser.userRole !== 'admin' && loginUser.userRole !== 'superAdmin')) {
+        return false
+      }
+    }
+    return true
+  })
+}
+
+// 展示在菜单的路由数组
+const menuItems = computed<MenuProps['items']>(() => filterMenus(originItems))
+
+// 处理菜单点击
 const handleMenuClick: MenuProps['onClick'] = (e) => {
   const key = e.key as string
   selectedKeys.value = [key]
+  // 跳转到对应页面
   if (key.startsWith('/')) {
     router.push(key)
   }
 }
 
-const goToSettings = () => {
+// 跳转个人设置
+const doSettings = () => {
   router.push('/user/settings')
 }
 
+// 退出登录
 const doLogout = async () => {
   const res = await userLogout()
   if (res.data.code === 0) {
@@ -111,13 +138,15 @@ const doLogout = async () => {
 
 <style scoped>
 .header {
-  background: var(--bg-header, #fff);
-  padding: 0 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  background: var(--bg-header);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   position: sticky;
   top: 0;
-  z-index: 10;
-  color: var(--text-color, #1a1a1a);
+  z-index: 100;
 }
 
 .header-left {
@@ -127,41 +156,62 @@ const doLogout = async () => {
 }
 
 .logo {
-  height: 48px;
-  width: 48px;
+  height: 40px;
+  width: 40px;
+  border-radius: 10px;
+  transition: transform 0.3s;
+}
+
+.logo:hover {
+  transform: scale(1.08) rotate(-5deg);
 }
 
 .site-title {
   margin: 0;
   font-size: 18px;
-  color: var(--primary-color, #1890ff);
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.3px;
 }
 
-.header :deep(.ant-menu-horizontal) {
+:deep(.ant-menu-horizontal) {
   border-bottom: none !important;
-  background: transparent !important;
+  background: transparent;
 }
 
-.header :deep(.ant-menu-item) {
-  color: var(--text-color, #1a1a1a) !important;
+:deep(.ant-menu-horizontal .ant-menu-item) {
+  border-radius: 8px;
+  margin: 0 2px;
+  transition: all 0.2s;
 }
 
-.header :deep(.ant-menu-item:hover) {
-  color: var(--primary-color, #1890ff) !important;
+:deep(.ant-menu-horizontal .ant-menu-item:hover) {
+  background: rgba(var(--primary-color-rgb), 0.06);
 }
 
-.header :deep(.ant-menu-item-selected) {
-  color: var(--primary-color, #1890ff) !important;
+:deep(.ant-menu-horizontal .ant-menu-item-selected) {
+  color: var(--primary-color);
+  font-weight: 600;
 }
 
-.user-dropdown-trigger {
-  cursor: pointer;
-  color: var(--text-color, #1a1a1a);
+:deep(.ant-menu-horizontal .ant-menu-item-selected::after) {
+  border-bottom-color: var(--primary-color);
 }
 
-@media (max-width: 768px) {
-  .site-title {
-    display: none;
-  }
+.user-login-status :deep(.ant-btn-primary) {
+  border-radius: 8px;
+  font-weight: 500;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  border: none;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+  transition: all 0.3s;
+}
+
+.user-login-status :deep(.ant-btn-primary):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
 }
 </style>

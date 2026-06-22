@@ -47,7 +47,7 @@ const renderedMarkdown = computed(() => {
 <style scoped>
 .markdown-content {
   line-height: 1.6;
-  color: #333;
+  color: var(--text-color);
   word-wrap: break-word;
 }
 
@@ -96,13 +96,13 @@ const renderedMarkdown = computed(() => {
 .markdown-content :deep(blockquote) {
   margin: 1em 0;
   padding: 0.5em 1em;
-  border-left: 4px solid #ddd;
-  background-color: #f9f9f9;
-  color: #666;
+  border-left: 4px solid var(--border-color);
+  background-color: var(--bg-page);
+  color: var(--text-secondary);
 }
 
 .markdown-content :deep(code) {
-  background-color: #f1f1f1;
+  background-color: var(--bg-page);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -110,8 +110,8 @@ const renderedMarkdown = computed(() => {
 }
 
 .markdown-content :deep(pre) {
-  background-color: #f8f8f8;
-  border: 1px solid #e1e1e1;
+  background-color: var(--bg-page);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1em;
   overflow-x: auto;
@@ -134,22 +134,22 @@ const renderedMarkdown = computed(() => {
 
 .markdown-content :deep(table th),
 .markdown-content :deep(table td) {
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   padding: 0.5em 0.8em;
   text-align: left;
 }
 
 .markdown-content :deep(table th) {
-  background-color: #f5f5f5;
+  background-color: var(--bg-page);
   font-weight: 600;
 }
 
 .markdown-content :deep(table tr:nth-child(even)) {
-  background-color: #f9f9f9;
+  background-color: var(--bg-page);
 }
 
 .markdown-content :deep(a) {
-  color: #1890ff;
+  color: var(--primary-color);
   text-decoration: none;
 }
 
@@ -166,13 +166,13 @@ const renderedMarkdown = computed(() => {
 
 .markdown-content :deep(hr) {
   border: none;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-color);
   margin: 1.5em 0;
 }
 
 /* 代码高亮样式优化 */
 .markdown-content :deep(.hljs) {
-  background-color: #f8f8f8 !important;
+  background-color: var(--bg-page) !important;
   border-radius: 6px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.9em;

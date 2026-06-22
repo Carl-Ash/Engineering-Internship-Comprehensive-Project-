@@ -83,6 +83,24 @@ public class App implements Serializable {
     private Long userId;
 
     /**
+     * 生成状态：none / generating / completed / failed
+     */
+    @Column("genStatus")
+    private String genStatus;
+
+    /**
+     * 可见范围：public / private
+     */
+    @Column("visibility")
+    private String visibility;
+
+    /**
+     * 当前版本号
+     */
+    @Column("version")
+    private Integer version;
+
+    /**
      * 编辑时间
      */
     @Column("editTime")

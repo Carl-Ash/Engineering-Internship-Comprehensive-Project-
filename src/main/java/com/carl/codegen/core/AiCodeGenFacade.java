@@ -1,13 +1,15 @@
 package com.carl.codegen.core;
 
-
 import com.carl.codegen.ai.AiCodeGenService;
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
+import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.parser.CodeParserExe;
 import com.carl.codegen.core.saver.CodeSaverExe;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
+import com.carl.codegen.mapper.AppMapper;
+import com.carl.codegen.model.entity.App;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -15,15 +17,12 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.io.File;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 代码生成门面，编排 AI 生成 → 解析 → 保存 的完整流程。
- * <p>
- * 提供两种调用模式：
- * <ul>
- *   <li>同步（{@link #generateAndSave}）：阻塞等待 AI 返回完整结果后保存，返回保存目录</li>
- *   <li>流式（{@link #genAndSavestream}）：实时透传 AI 流式输出，流结束后自动解析并保存</li>
- * </ul>
  */
 @Service
 @Slf4j
@@ -32,13 +31,34 @@ public class AiCodeGenFacade {
     @Resource
     private AiCodeGenService aiCodeGenService;
 
+    @Resource
+    private AppMapper appMapper;
+
+    /** 取消标记：key=appId，value=true表示已取消 */
+    private final Map<Long, AtomicBoolean> cancelMap = new ConcurrentHashMap<>();
+
     /**
-     * 同步生成代码并保存，阻塞直到 AI 返回完整结果。
-     *
-     * @param prompt 用户提示词
-     * @param type   生成类型（HTML 单文件 / 多文件）
-     * @param appId  应用 id
-     * @return 保存的目录
+     * 发送取消信号
+     */
+    public void cancelGeneration(Long appId) {
+        AtomicBoolean flag = cancelMap.computeIfAbsent(appId, k -> new AtomicBoolean(false));
+        flag.set(true);
+    }
+
+    /**
+     * 清理取消标记
+     */
+    private void clearCancel(Long appId) {
+        cancelMap.remove(appId);
+    }
+
+    private boolean isCancelled(Long appId) {
+        AtomicBoolean flag = cancelMap.get(appId);
+        return flag != null && flag.get();
+    }
+
+    /**
+     * 同步生成代码并保存。
      */
     public File generateAndSave(String prompt, CodeGenTypeEnum type, Long appId) {
         if (type == null) {
@@ -59,11 +79,6 @@ public class AiCodeGenFacade {
 
     /**
      * 流式生成代码并保存，实时透传 AI 输出，流结束后自动解析并写入文件。
-     *
-     * @param prompt 用户提示词
-     * @param type   生成类型（HTML 单文件 / 多文件）
-     * @param appId  应用 id
-     * @return 实时透传的代码流
      */
     public Flux<String> genAndSavestream(String prompt, CodeGenTypeEnum type, Long appId) {
         if (type == null) {
@@ -82,30 +97,42 @@ public class AiCodeGenFacade {
         };
     }
 
-
-    /**
-     * 处理代码流，根据类型解析并保存。
-     * @param codeStream 代码流
-     * @param type       生成类型（HTML 单文件 / 多文件）
-     * @param appId      应用 id
-     * @return 保存后的目录流
-     */
     private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum type, Long appId) {
-        // 字符串拼接器，用于收集所有代码片段
         StringBuilder codeBuilder = new StringBuilder();
-        // 累加代码片段
-        return codeStream.doOnNext(codeBuilder::append).doOnComplete(() -> {
-                try {
-                    // 拼接所有代码片段
-                    String fullCode = codeBuilder.toString();
-                    // 解析代码
-                    Object parsed = CodeParserExe.executeParser(fullCode, type);
-                    // 保存代码
-                    File savedDir = CodeSaverExe.executeSaver(parsed, type, appId);
-                    log.info("保存成功，路径为：" + savedDir.getAbsolutePath());
-                } catch (Exception e) {
-                    log.error("保存失败: {}", e.getMessage());
-                }
+        return codeStream
+                .takeUntil(chunk -> isCancelled(appId))
+                .doOnNext(codeBuilder::append)
+                .doOnComplete(() -> {
+                    clearCancel(appId);
+                    try {
+                        String fullCode = codeBuilder.toString();
+                        Object parsed = CodeParserExe.executeParser(fullCode, type);
+                        // 递增版本号并保存
+                        App app = appMapper.selectOneById(appId);
+                        int newVersion = (app != null && app.getVersion() != null) ? app.getVersion() + 1 : 1;
+                        File savedDir = CodeSaverExe.executeSaver(parsed, type, appId);
+                        log.info("保存成功，路径：{}，版本：{}", savedDir.getAbsolutePath(), newVersion);
+                        // 更新版本号和生成状态
+                        updateAppStatus(appId, AppConstant.GEN_STATUS_COMPLETED, newVersion);
+                    } catch (Exception e) {
+                        log.error("保存失败: {}", e.getMessage());
+                        updateAppStatus(appId, AppConstant.GEN_STATUS_FAILED, null);
+                    }
+                })
+                .doOnCancel(() -> {
+                    clearCancel(appId);
+                    updateAppStatus(appId, AppConstant.GEN_STATUS_FAILED, null);
+                    log.info("生成已被取消，appId={}", appId);
                 });
+    }
+
+    private void updateAppStatus(Long appId, String genStatus, Integer version) {
+        App updateApp = new App();
+        updateApp.setId(appId);
+        updateApp.setGenStatus(genStatus);
+        if (version != null) {
+            updateApp.setVersion(version);
+        }
+        appMapper.update(updateApp);
     }
 }

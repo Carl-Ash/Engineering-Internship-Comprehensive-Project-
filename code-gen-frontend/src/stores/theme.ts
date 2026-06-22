@@ -1,16 +1,20 @@
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 export interface ThemePreset {
   label: string
-  key: string           // 唯一标识，用于 class
-  primary: string       // 主题色
+  key: string
+  primary: string
+  primaryRgb: string
   bgPage: string
   bgCard: string
   bgHeader: string
   textColor: string
   textSecondary: string
   borderColor: string
+  heroGradientStart: string
+  heroGradientEnd: string
+  heroGradientMid: string
 }
 
 export const themePresets: ThemePreset[] = [
@@ -18,46 +22,27 @@ export const themePresets: ThemePreset[] = [
     label: '极简白',
     key: 'light',
     primary: '#1890ff',
+    primaryRgb: '24, 144, 255',
     bgPage: '#f0f2f5',
     bgCard: '#ffffff',
-    bgHeader: '#ffffff',
+    bgHeader: 'rgba(255,255,255,0.8)',
     textColor: '#1a1a1a',
     textSecondary: '#8c8c8c',
-    borderColor: '#f0f0f0',
-  },
-  {
-    label: '暗夜黑',
-    key: 'dark',
-    primary: '#1677ff',
-    bgPage: '#0d1117',
-    bgCard: '#161b22',
-    bgHeader: '#161b22',
-    textColor: '#e6edf3',
-    textSecondary: '#8b949e',
-    borderColor: '#30363d',
-  },
-  {
-    label: '暖阳',
-    key: 'warm',
-    primary: '#d46b08',
-    bgPage: '#faf6f0',
-    bgCard: '#fffef9',
-    bgHeader: '#fffef9',
-    textColor: '#2c2c2c',
-    textSecondary: '#8c8c8c',
-    borderColor: '#f0e8e0',
+    borderColor: '#e8e8ec',
+    heroGradientStart: '#667eea',
+    heroGradientEnd: '#764ba2',
+    heroGradientMid: '#f093fb',
   },
 ]
 
 export const useThemeStore = defineStore('theme', () => {
-  const savedIndex = Number(localStorage.getItem('themeIndex') || '0')
-  const currentIndex = ref(savedIndex)
-  const currentTheme = ref<ThemePreset>(themePresets[savedIndex] || themePresets[0])
+  const currentIndex = ref(0)
+  const currentTheme = ref<ThemePreset>(themePresets[0]!)
 
   function setTheme(index: number) {
     currentIndex.value = index
-    currentTheme.value = themePresets[index] || themePresets[0]
-    localStorage.setItem('themeIndex', String(index))
+    const newIndex = Math.min(Math.max(index, 0), themePresets.length - 1)
+    currentTheme.value = themePresets[newIndex]!
     applyTheme(currentTheme.value)
   }
 
@@ -70,17 +55,16 @@ export const useThemeStore = defineStore('theme', () => {
     root.style.setProperty('--text-secondary', theme.textSecondary)
     root.style.setProperty('--border-color', theme.borderColor)
     root.style.setProperty('--primary-color', theme.primary)
-
-    // 给 html 加 class，方便覆盖 antd 组件样式
+    root.style.setProperty('--primary-color-rgb', theme.primaryRgb)
+    root.style.setProperty('--hero-gradient-start', theme.heroGradientStart)
+    root.style.setProperty('--hero-gradient-end', theme.heroGradientEnd)
+    root.style.setProperty('--hero-gradient-mid', theme.heroGradientMid)
     document.documentElement.className = 'theme-' + theme.key
   }
 
   applyTheme(currentTheme.value)
 
   const primaryColor = ref(currentTheme.value.primary)
-  watch(currentTheme, (t) => {
-    primaryColor.value = t.primary
-  })
 
   return { currentIndex, currentTheme, primaryColor, setTheme }
 })
