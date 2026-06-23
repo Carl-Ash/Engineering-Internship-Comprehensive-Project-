@@ -65,6 +65,32 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item v-if="isAdmin" label="状态">
+          <a-select
+            v-model:value="searchParams.genStatus"
+            placeholder="选择状态"
+            allow-clear
+            style="width: 120px"
+          >
+            <a-select-option value="">全部</a-select-option>
+            <a-select-option value="none">未生成</a-select-option>
+            <a-select-option value="generating">生成中</a-select-option>
+            <a-select-option value="completed">已完成</a-select-option>
+            <a-select-option value="failed">失败</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item v-if="isAdmin" label="可见">
+          <a-select
+            v-model:value="searchParams.visibility"
+            placeholder="可见范围"
+            allow-clear
+            style="width: 110px"
+          >
+            <a-select-option value="">全部</a-select-option>
+            <a-select-option value="public">公开</a-select-option>
+            <a-select-option value="private">私有</a-select-option>
+          </a-select>
+        </a-form-item>
         <a-form-item>
           <a-button type="primary" html-type="submit">搜索</a-button>
         </a-form-item>
@@ -77,7 +103,7 @@
       :data-source="data"
       :pagination="pagination"
       @change="doTableChange"
-      :scroll="{ x: 1200 }"
+      :scroll="{ x: 1400 }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'cover'">
@@ -91,6 +117,18 @@
         </template>
         <template v-else-if="column.dataIndex === 'codeGenType'">
           {{ formatCodeGenType(record.codeGenType) }}
+        </template>
+        <template v-else-if="column.dataIndex === 'genStatus'">
+          <a-tag v-if="record.genStatus === 'none'" color="default">未生成</a-tag>
+          <a-tag v-else-if="record.genStatus === 'generating'" color="processing">生成中</a-tag>
+          <a-tag v-else-if="record.genStatus === 'completed'" color="success">已完成</a-tag>
+          <a-tag v-else-if="record.genStatus === 'failed'" color="error">失败</a-tag>
+          <span v-else>{{ record.genStatus }}</span>
+        </template>
+        <template v-else-if="column.dataIndex === 'visibility'">
+          <a-tag v-if="record.visibility === 'public'" color="blue">公开</a-tag>
+          <a-tag v-else-if="record.visibility === 'private'" color="orange">私有</a-tag>
+          <span v-else>{{ record.visibility }}</span>
         </template>
         <template v-else-if="column.dataIndex === 'priority'">
           <a-tag v-if="record.priority === 99" color="gold">精选</a-tag>
@@ -164,10 +202,11 @@ const searchParams = reactive<API.AppQueryRequest>({
 const fetchData = async () => {
   try {
     const params = { ...searchParams }
-    // 普通用户去掉 userId 和 codeGenType 搜索条件
+    // 普通用户去掉 userId、codeGenType、genStatus 搜索条件
     if (!isAdmin.value) {
       delete params.userId
       delete params.codeGenType
+      delete params.genStatus
     }
 
     const api = isAdmin.value ? listAppVoByPageByAdmin : listMyAppVoByPage
@@ -232,7 +271,7 @@ const doDelete = async (id: number | string | undefined) => {
   if (!id) return
   try {
     const api = isAdmin.value ? deleteAppByAdmin : deleteApp
-    const res = await api({ id })
+    const res = await api({ id: Number(id) })
     if (res.data.code === 0) {
       message.success('删除成功')
       fetchData()
@@ -255,6 +294,8 @@ const columns = computed(() => {
     { title: '封面', dataIndex: 'cover', width: 100 },
     { title: '初始提示词', dataIndex: 'initPrompt', width: 200 },
     { title: '生成类型', dataIndex: 'codeGenType', width: 100 },
+    { title: '状态', dataIndex: 'genStatus', width: 90 },
+    { title: '可见', dataIndex: 'visibility', width: 70 },
     { title: '优先级', dataIndex: 'priority', width: 80 },
     { title: '部署时间', dataIndex: 'deployedTime', width: 160 },
     { title: '创建时间', dataIndex: 'createTime', width: 160 },

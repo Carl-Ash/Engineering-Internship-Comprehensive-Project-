@@ -1,6 +1,6 @@
 package com.carl.codegen.core;
 
-import com.carl.codegen.ai.AiCodeGenService;
+import com.carl.codegen.ai.AiCodeGenServiceFactory;
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
 import com.carl.codegen.constant.AppConstant;
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AiCodeGenFacade {
 
     @Resource
-    private AiCodeGenService aiCodeGenService;
+    private AiCodeGenServiceFactory aiCodeGenServiceFactory;
 
     @Resource
     private AppMapper appMapper;
@@ -66,11 +66,11 @@ public class AiCodeGenFacade {
         }
         return switch (type) {
             case HTML -> {
-                HtmlResult parsed = aiCodeGenService.generateHtmlCode(prompt);
+                HtmlResult parsed = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateHtmlCode(prompt);
                 yield CodeSaverExe.executeSaver(parsed, CodeGenTypeEnum.HTML, appId);
             }
             case MULTI_FILE -> {
-                MultiFileResult parsed = aiCodeGenService.generateMultiFileCode(prompt);
+                MultiFileResult parsed = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateMultiFileCode(prompt);
                 yield CodeSaverExe.executeSaver(parsed, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型" + type.getValue());
@@ -86,12 +86,16 @@ public class AiCodeGenFacade {
         }
         return switch (type) {
             case HTML -> {
-                Flux<String> codeFlux = aiCodeGenService.generateHtmlCodeStreaming(prompt);
+                Flux<String> codeFlux = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateHtmlCodeStreaming(prompt);
                 yield processCodeStream(codeFlux, CodeGenTypeEnum.HTML, appId);
             }
             case MULTI_FILE -> {
-                Flux<String> codeFlux = aiCodeGenService.generateMultiFileCodeStreaming(prompt);
+                Flux<String> codeFlux = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateMultiFileCodeStreaming(prompt);
                 yield processCodeStream(codeFlux, CodeGenTypeEnum.MULTI_FILE, appId);
+            }
+            case VUE3 -> {
+                Flux<String> codeFlux = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateVue3CodeStreaming(appId, prompt);
+                yield processCodeStream(codeFlux, CodeGenTypeEnum.VUE3, appId);
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型" + type.getValue());
         };
@@ -105,14 +109,17 @@ public class AiCodeGenFacade {
                 .doOnComplete(() -> {
                     clearCancel(appId);
                     try {
-                        String fullCode = codeBuilder.toString();
-                        Object parsed = CodeParserExe.executeParser(fullCode, type);
-                        // 递增版本号并保存
                         App app = appMapper.selectOneById(appId);
                         int newVersion = (app != null && app.getVersion() != null) ? app.getVersion() + 1 : 1;
-                        File savedDir = CodeSaverExe.executeSaver(parsed, type, appId);
-                        log.info("保存成功，路径：{}，版本：{}", savedDir.getAbsolutePath(), newVersion);
-                        // 更新版本号和生成状态
+                        if (type == CodeGenTypeEnum.VUE3) {
+                            // VUE3 通过工具调用写入文件，无需额外解析保存
+                            log.info("VUE3 生成完成，appId: {}，版本：{}", appId, newVersion);
+                        } else {
+                            String fullCode = codeBuilder.toString();
+                            Object parsed = CodeParserExe.executeParser(fullCode, type);
+                            File savedDir = CodeSaverExe.executeSaver(parsed, type, appId);
+                            log.info("保存成功，路径：{}，版本：{}", savedDir.getAbsolutePath(), newVersion);
+                        }
                         updateAppStatus(appId, AppConstant.GEN_STATUS_COMPLETED, newVersion);
                     } catch (Exception e) {
                         log.error("保存失败: {}", e.getMessage());

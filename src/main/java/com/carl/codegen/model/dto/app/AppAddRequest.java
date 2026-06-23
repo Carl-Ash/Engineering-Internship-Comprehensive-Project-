@@ -16,6 +16,11 @@ public class AppAddRequest implements Serializable {
     private String initPrompt;
 
     /**
+     * 代码生成类型（html / multi_file）
+     */
+    private String codeGenType;
+
+    /**
      * 可见范围：public / private，默认 public
      */
     private String visibility;

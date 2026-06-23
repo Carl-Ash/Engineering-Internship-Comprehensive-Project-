@@ -87,25 +87,9 @@ public class AppController {
     @PostMapping("/add")
     public BaseResponse<Long> addApp(@RequestBody AppAddRequest appAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(appAddRequest == null, ErrorCode.PARAMS_ERROR);
-        String initPrompt = appAddRequest.getInitPrompt();
-        ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
         User loginUser = userService.getLoginUser(request);
-        App app = new App();
-        BeanUtil.copyProperties(appAddRequest, app);
-        app.setUserId(loginUser.getId());
-        // AI 生成应用名称：取 prompt 前 30 字作为名称
-        String autoName = initPrompt.length() > 30 ? initPrompt.substring(0, 30) : initPrompt;
-        app.setAppName(autoName);
-        app.setCodeGenType(CodeGenTypeEnum.MULTI_FILE.getValue());
-        app.setGenStatus(AppConstant.GEN_STATUS_NONE);
-        app.setVersion(0);
-        // 默认公开
-        if (StrUtil.isBlank(app.getVisibility())) {
-            app.setVisibility(AppConstant.VISIBILITY_PUBLIC);
-        }
-        boolean result = appService.save(app);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(app.getId());
+        Long appId = appService.createApp(appAddRequest, loginUser);
+        return ResultUtils.success(appId);
     }
 
     /** 删除应用（用户只能删除自己的应用） */

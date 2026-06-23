@@ -20,8 +20,8 @@ router.beforeEach(async (to, from, next) => {
 
   const toUrl = to.fullPath
 
-  // 用户管理：仅管理员和超级管理员
-  if (toUrl.startsWith('/admin/userManage')) {
+  // 用户管理、对话管理：仅管理员和超级管理员
+  if (toUrl.startsWith('/admin/userManage') || toUrl.startsWith('/admin/chatManage')) {
     if (!loginUser || (loginUser.userRole !== 'admin' && loginUser.userRole !== 'superAdmin')) {
       message.error('没有权限')
       next(`/user/login?redirect=${to.fullPath}`)

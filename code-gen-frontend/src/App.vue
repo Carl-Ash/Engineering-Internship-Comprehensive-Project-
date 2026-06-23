@@ -26,6 +26,11 @@ import BasicLayout from '@/layouts/BasicLayout.vue'
   box-sizing: border-box;
 }
 
+html {
+  overflow: hidden;
+  height: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -34,13 +39,10 @@ body {
     'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow: hidden;
+  height: 100%;
   background: var(--bg-page);
   color: var(--text-color);
-}
-
-html {
-  overflow-x: hidden;
 }
 
 ::selection {

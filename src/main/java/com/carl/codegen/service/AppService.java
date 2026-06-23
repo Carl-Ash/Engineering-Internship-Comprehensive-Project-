@@ -1,5 +1,6 @@
 package com.carl.codegen.service;
 
+import com.carl.codegen.model.dto.app.AppAddRequest;
 import com.carl.codegen.model.dto.app.AppQueryRequest;
 import com.carl.codegen.model.entity.User;
 import com.carl.codegen.model.vo.AppVO;
@@ -16,6 +17,11 @@ import java.util.List;
  * @author Carl
  */
 public interface AppService extends IService<App> {
+
+    /**
+     * 创建应用
+     */
+    Long createApp(AppAddRequest appAddRequest, User loginUser);
 
     /**
      * 获取应用封装类

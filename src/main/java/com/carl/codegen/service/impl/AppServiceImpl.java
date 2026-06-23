@@ -10,6 +10,7 @@ import com.carl.codegen.core.AiCodeGenFacade;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.exception.ThrowUtils;
+import com.carl.codegen.model.dto.app.AppAddRequest;
 import com.carl.codegen.model.dto.app.AppQueryRequest;
 import com.carl.codegen.model.entity.User;
 import com.carl.codegen.model.enums.ChatHistoryMessageTypeEnum;
@@ -54,6 +55,31 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
 
     @Resource
     private ChatHistoryService chatHistoryService;
+
+    @Override
+    public Long createApp(AppAddRequest appAddRequest, User loginUser) {
+        String initPrompt = appAddRequest.getInitPrompt();
+        ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
+        App app = new App();
+        app.setInitPrompt(initPrompt);
+        // 代码生成类型：优先使用请求中的值，默认 multi_file
+        String codeGenType = StrUtil.isNotBlank(appAddRequest.getCodeGenType())
+                ? appAddRequest.getCodeGenType()
+                : CodeGenTypeEnum.MULTI_FILE.getValue();
+        app.setCodeGenType(codeGenType);
+        // AI 生成应用名称：取 prompt 前 30 字
+        String autoName = initPrompt.length() > 30 ? initPrompt.substring(0, 30) : initPrompt;
+        app.setAppName(autoName);
+        app.setUserId(loginUser.getId());
+        app.setGenStatus(AppConstant.GEN_STATUS_NONE);
+        app.setVersion(0);
+        app.setVisibility(StrUtil.isNotBlank(appAddRequest.getVisibility())
+                ? appAddRequest.getVisibility()
+                : AppConstant.VISIBILITY_PUBLIC);
+        boolean result = this.save(app);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return app.getId();
+    }
 
     @Override
     public AppVO getAppVO(App app) {

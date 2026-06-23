@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { userRegister } from '@/api/userController.ts'
+import { register } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import { reactive, ref } from 'vue'
 
@@ -73,7 +73,7 @@ const validateCheckPassword = (rule: unknown, value: string, callback: (error?: 
 const handleSubmit = async (values: API.UserRegisterRequest) => {
   loading.value = true
   try {
-    const res = await userRegister(values)
+    const res = await register(values)
     if (res.data.code === 0) {
       message.success('注册成功')
       router.push({

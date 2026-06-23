@@ -19,14 +19,18 @@ import GlobalFooter from '@/components/GlobalFooter.vue'
 <style scoped>
 .basic-layout {
   background: var(--bg-page);
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .main-content {
+  flex: 1;
   width: 100%;
-  padding: 0;
+  padding-top: 64px;
+  padding-bottom: 62px;
   background: none;
   margin: 0;
-  min-height: calc(100vh - 64px - 62px);
-}
-</style>
+  overflow-y: auto;
+}</style>

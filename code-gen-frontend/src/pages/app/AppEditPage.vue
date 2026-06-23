@@ -182,7 +182,7 @@ const fetchAppInfo = async () => {
 
   loading.value = true
   try {
-    const res = await getAppVoById({ id })
+    const res = await getAppVoById({ id: Number(id) })
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
@@ -228,6 +228,7 @@ const handleSubmit = async () => {
         appName: formData.appName,
         cover: formData.cover,
         priority: formData.priority,
+        visibility: formData.visibility,
       })
     } else {
       // 普通用户只能修改应用名称

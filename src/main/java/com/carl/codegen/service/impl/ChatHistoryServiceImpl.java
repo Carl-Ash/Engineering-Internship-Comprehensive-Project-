@@ -1,5 +1,6 @@
 package com.carl.codegen.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.carl.codegen.constant.UserConstant;
 import com.carl.codegen.exception.ErrorCode;
@@ -15,23 +16,95 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.carl.codegen.model.entity.ChatHistory;
 import com.carl.codegen.mapper.ChatHistoryMapper;
 import com.carl.codegen.service.ChatHistoryService;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 对话历史 服务层实现。
  *
  * @author Carl
  */
+@Slf4j
 @Service
-public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatHistory>  implements ChatHistoryService{
+public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatHistory> implements ChatHistoryService {
 
     @Resource
     @Lazy
     private AppService appService;
+
+    @Override
+    public int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount) {
+        try {
+            QueryWrapper queryWrapper = QueryWrapper.create()
+                    .eq(ChatHistory::getAppId, appId)
+                    .orderBy(ChatHistory::getCreateTime, false)
+                    .limit(1, maxCount);
+            List<ChatHistory> historyList = this.list(queryWrapper);
+            if (CollUtil.isEmpty(historyList)) return 0;
+            // 反转列表，确保按时间正序（老的在前，新的在后）
+            Collections.reverse(historyList);
+            // 先清理历史缓存，防止重复加载
+            chatMemory.clear();
+            int loadedCount = 0;
+            for (ChatHistory history : historyList) {
+                if (ChatHistoryMessageTypeEnum.USER.getValue().equals(history.getMessageType())) {
+                    chatMemory.add(UserMessage.from(history.getMessage()));
+                    loadedCount++;
+                } else if (ChatHistoryMessageTypeEnum.AI.getValue().equals(history.getMessageType())) {
+                    chatMemory.add(AiMessage.from(history.getMessage()));
+                    loadedCount++;
+                }
+            }
+            log.info("成功为 appId: {} 加载了 {} 条历史对话", appId, loadedCount);
+            return loadedCount;
+        } catch (Exception e) {
+            log.error("加载历史对话失败，appId: {}, error: {}", appId, e.getMessage(), e);
+            return 0;
+        }
+    }
+
+    @Override
+    public String exportToMarkdown(Long appId, String appName, User loginUser) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID不能为空");
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
+        App app = appService.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
+        boolean isCreator = app.getUserId().equals(loginUser.getId());
+        ThrowUtils.throwIf(!isAdmin && !isCreator, ErrorCode.NO_AUTH_ERROR, "无权导出该应用的对话历史");
+        // 查询所有对话历史，按时间正序
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .eq(ChatHistory::getAppId, appId)
+                .orderBy(ChatHistory::getCreateTime, true);
+        List<ChatHistory> historyList = this.list(queryWrapper);
+        if (CollUtil.isEmpty(historyList)) {
+            return "";
+        }
+        StringBuilder md = new StringBuilder();
+        md.append("# 对话历史 - ").append(appName != null ? appName : "应用").append("\n\n");
+        md.append("> 导出时间: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
+        md.append("---\n\n");
+        for (ChatHistory history : historyList) {
+            if (ChatHistoryMessageTypeEnum.USER.getValue().equals(history.getMessageType())) {
+                md.append("## 用户\n\n");
+            } else {
+                md.append("## AI\n\n");
+            }
+            md.append(history.getMessage()).append("\n\n");
+            md.append("---\n\n");
+        }
+        return md.toString();
+    }
 
     @Override
     public boolean addChatMessage(Long appId, String message, String messageType, Long userId) {
@@ -45,6 +118,12 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         // 保存到数据库
         ChatHistory chatHistory = ChatHistory.builder().appId(appId).message(message).messageType(messageType).userId(userId).build();
         return this.save(chatHistory);
+    }
+
+    @Override
+    public boolean deleteChatHistoryById(Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR, "对话历史ID不能为空");
+        return this.removeById(id);
     }
 
     @Override

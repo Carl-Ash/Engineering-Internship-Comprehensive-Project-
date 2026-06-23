@@ -5,12 +5,14 @@ import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
+import { CodeGenTypeEnum, CODE_GEN_TYPE_OPTIONS } from '@/utils/codeGenTypes'
 import AppCard from '@/components/AppCard.vue'
 
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
 
 const userPrompt = ref('')
+const codeGenType = ref<string>(CodeGenTypeEnum.MULTI_FILE)
 const creating = ref(false)
 
 const myApps = ref<API.AppVO[]>([])
@@ -43,7 +45,7 @@ const createApp = async () => {
   }
   creating.value = true
   try {
-    const res = await addApp({ initPrompt: userPrompt.value.trim() })
+    const res = await addApp({ initPrompt: userPrompt.value.trim(), codeGenType: codeGenType.value })
     if (res.data.code === 0 && res.data.data) {
       message.success('应用创建成功')
       const appId = String(res.data.data)
@@ -154,6 +156,16 @@ onMounted(() => {
             class="prompt-input"
             @press-enter="createApp"
           />
+          <div class="type-selector">
+            <span class="type-label">生成模式</span>
+            <a-radio-group v-model:value="codeGenType">
+              <a-radio
+                v-for="opt in CODE_GEN_TYPE_OPTIONS"
+                :key="opt.value"
+                :value="opt.value"
+              >{{ opt.label }}</a-radio>
+            </a-radio-group>
+          </div>
           <a-button
             type="primary"
             size="large"
@@ -545,6 +557,24 @@ onMounted(() => {
 
 .prompt-input-wrap :deep(.ant-input):focus {
   box-shadow: none !important;
+}
+
+.type-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.type-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.type-selector :deep(.ant-radio-group) {
+  display: flex;
+  gap: 16px;
 }
 
 .submit-btn {

@@ -1,26 +1,28 @@
 <template>
   <a-layout-header class="header">
-    <a-row :wrap="false">
+    <div class="header-content">
       <!-- 左侧：Logo和标题 -->
-      <a-col flex="200px">
-        <RouterLink to="/">
-          <div class="header-left">
-            <img class="logo" src="@/assets/logo.png" alt="Logo" />
-            <h1 class="site-title">AI 应用生成平台</h1>
-          </div>
-        </RouterLink>
-      </a-col>
+      <RouterLink to="/" class="header-left">
+        <img class="logo" src="@/assets/logo.png" alt="Logo" />
+        <h1 class="site-title">AI 应用生成平台</h1>
+      </RouterLink>
+
       <!-- 中间：导航菜单 -->
-      <a-col flex="auto">
-        <a-menu
-          v-model:selectedKeys="selectedKeys"
-          mode="horizontal"
-          :items="menuItems"
-          @click="handleMenuClick"
-        />
-      </a-col>
+      <nav class="header-menu">
+        <RouterLink
+          v-for="item in menuItems"
+          :key="item.key"
+          :to="item.key as string"
+          class="menu-item"
+          :class="{ active: selectedKeys.includes(item.key as string) }"
+        >
+          <component v-if="item.icon" :is="item.icon" class="menu-icon" />
+          <span>{{ item.label }}</span>
+        </RouterLink>
+      </nav>
+
       <!-- 右侧：用户操作区域 -->
-      <a-col>
+      <div class="header-right">
         <div class="user-login-status">
           <div v-if="loginUserStore.loginUser.id">
             <a-dropdown>
@@ -46,33 +48,39 @@
             <a-button type="primary" href="/user/login">登录</a-button>
           </div>
         </div>
-      </a-col>
-    </a-row>
+      </div>
+    </div>
   </a-layout-header>
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { type MenuProps, message } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser.ts'
 import { userLogout } from '@/api/userController.ts'
 import { LogoutOutlined, HomeOutlined, SettingOutlined } from '@ant-design/icons-vue'
 
 const loginUserStore = useLoginUserStore()
 const router = useRouter()
-// 当前选中菜单
+
 const selectedKeys = ref<string[]>(['/'])
-// 监听路由变化，更新当前选中菜单
-router.afterEach((to, from, next) => {
+
+router.afterEach((to) => {
   selectedKeys.value = [to.path]
 })
 
-// 菜单配置项
-const originItems = [
+interface MenuItem {
+  key: string
+  icon?: typeof HomeOutlined
+  label: string
+  title: string
+}
+
+const originItems: MenuItem[] = [
   {
     key: '/',
-    icon: () => h(HomeOutlined),
+    icon: HomeOutlined,
     label: '主页',
     title: '主页',
   },
@@ -88,12 +96,9 @@ const originItems = [
   },
 ]
 
-// 过滤菜单项
-const filterMenus = (menus = [] as MenuProps['items']) => {
-  return menus?.filter((menu) => {
-    const menuKey = menu?.key as string
-    // 用户管理仅管理员可见
-    if (menuKey === '/admin/userManage') {
+const filterMenus = (menus: MenuItem[]) => {
+  return menus.filter((menu) => {
+    if (menu.key === '/admin/userManage') {
       const loginUser = loginUserStore.loginUser
       if (!loginUser || (loginUser.userRole !== 'admin' && loginUser.userRole !== 'superAdmin')) {
         return false
@@ -103,25 +108,12 @@ const filterMenus = (menus = [] as MenuProps['items']) => {
   })
 }
 
-// 展示在菜单的路由数组
-const menuItems = computed<MenuProps['items']>(() => filterMenus(originItems))
+const menuItems = computed(() => filterMenus(originItems))
 
-// 处理菜单点击
-const handleMenuClick: MenuProps['onClick'] = (e) => {
-  const key = e.key as string
-  selectedKeys.value = [key]
-  // 跳转到对应页面
-  if (key.startsWith('/')) {
-    router.push(key)
-  }
-}
-
-// 跳转个人设置
 const doSettings = () => {
   router.push('/user/settings')
 }
 
-// 退出登录
 const doLogout = async () => {
   const res = await userLogout()
   if (res.data.code === 0) {
@@ -144,15 +136,29 @@ const doLogout = async () => {
   padding: 0 32px;
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
+  height: 64px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100%;
+  width: 100%;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+  text-decoration: none;
+  margin-right: 40px;
 }
 
 .logo {
@@ -177,28 +183,46 @@ const doLogout = async () => {
   letter-spacing: -0.3px;
 }
 
-:deep(.ant-menu-horizontal) {
-  border-bottom: none !important;
-  background: transparent;
+.header-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-:deep(.ant-menu-horizontal .ant-menu-item) {
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
   border-radius: 8px;
-  margin: 0 2px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
-:deep(.ant-menu-horizontal .ant-menu-item:hover) {
+.menu-item:hover {
   background: rgba(var(--primary-color-rgb), 0.06);
+  color: var(--text-color);
 }
 
-:deep(.ant-menu-horizontal .ant-menu-item-selected) {
+.menu-item.active {
   color: var(--primary-color);
   font-weight: 600;
+  background: rgba(var(--primary-color-rgb), 0.08);
 }
 
-:deep(.ant-menu-horizontal .ant-menu-item-selected::after) {
-  border-bottom-color: var(--primary-color);
+.menu-icon {
+  font-size: 14px;
+}
+
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
 }
 
 .user-login-status :deep(.ant-btn-primary) {

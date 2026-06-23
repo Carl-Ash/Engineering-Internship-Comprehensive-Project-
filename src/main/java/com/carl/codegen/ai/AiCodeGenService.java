@@ -2,7 +2,9 @@ package com.carl.codegen.ai;
 
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
+import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
+import dev.langchain4j.service.UserMessage;
 import reactor.core.publisher.Flux;
 
 public interface AiCodeGenService {
@@ -38,4 +40,12 @@ public interface AiCodeGenService {
      */
     @SystemMessage(fromResource = "prompt/codegen-multi-file-system-prompt.txt")
     Flux<String> generateMultiFileCodeStreaming(String prompt);
+
+    /**
+     * 生成 Vue3 项目代码 (流式输出)
+     * @param prompt 代码提示
+     * @return 生成的代码
+     */
+    @SystemMessage(fromResource = "prompt/codegen-vue3-system-prompt.txt")
+    Flux<String> generateVue3CodeStreaming(@MemoryId Long appId, @UserMessage String prompt);
 }

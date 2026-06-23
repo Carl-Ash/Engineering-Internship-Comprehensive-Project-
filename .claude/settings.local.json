@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where redis-server *)",
+      "Bash(where redis-cli *)",
+      "Bash(netstat -ano)",
+      "Bash(sc query *)",
+      "Bash(C:\\\\Users\\\\16646\\\\Redis\\\\Redis-7.4.3-Windows-x64-msys2-with-Service\\\\redis-cli.exe *)",
+      "Bash(mvn compile *)"
+    ]
+  }
+}

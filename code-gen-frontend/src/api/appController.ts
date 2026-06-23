@@ -71,6 +71,21 @@ export async function updateAppByAdmin(
   })
 }
 
+/** 此处后端没有提供注释 POST /app/chat/gen/cancel */
+export async function cancelGenCode(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.cancelGenCodeParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseString>('/app/chat/gen/cancel', {
+    method: 'POST',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 GET /app/chat/gen/code */
 export async function chatToGenCode(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -155,6 +170,18 @@ export async function listMyAppVoByPage(
   })
 }
 
+/** 此处后端没有提供注释 POST /app/undeploy */
+export async function undeployApp(body: API.AppDeployRequest, options?: { [key: string]: any }) {
+  return request<API.BaseResponseString>('/app/undeploy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /app/update */
 export async function updateApp(body: API.AppUpdateRequest, options?: { [key: string]: any }) {
   return request<API.BaseResponseBoolean>('/app/update', {
@@ -167,38 +194,17 @@ export async function updateApp(body: API.AppUpdateRequest, options?: { [key: st
   })
 }
 
-/** 停止 AI 生成 POST /app/chat/gen/cancel */
-export async function cancelGenCode(
-  params: API.cancelGenCodeParams,
-  options?: { [key: string]: any }
-) {
-  return request<API.BaseResponseString>('/app/chat/gen/cancel', {
-    method: 'POST',
-    params: { ...params },
-    ...(options || {}),
-  })
-}
-
-/** 取消部署（下线） POST /app/undeploy */
-export async function undeployApp(body: API.AppDeployRequest, options?: { [key: string]: any }) {
-  return request<API.BaseResponseString>('/app/undeploy', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    data: body,
-    ...(options || {}),
-  })
-}
-
-/** 版本回退 POST /app/version/rollback */
+/** 此处后端没有提供注释 POST /app/version/rollback */
 export async function rollbackVersion(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.rollbackVersionParams,
   options?: { [key: string]: any }
 ) {
   return request<API.BaseResponseString>('/app/version/rollback', {
     method: 'POST',
-    params: { ...params },
+    params: {
+      ...params,
+    },
     ...(options || {}),
   })
 }
