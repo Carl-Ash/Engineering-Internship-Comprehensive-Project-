@@ -1,8 +1,12 @@
 package com.carl.codegen.core;
 
+import cn.hutool.json.JSONUtil;
 import com.carl.codegen.ai.AiCodeGenServiceFactory;
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
+import com.carl.codegen.ai.model.message.AiResponseMessage;
+import com.carl.codegen.ai.model.message.ToolRequestMessage;
+import com.carl.codegen.ai.model.message.ToolResultMessage;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.parser.CodeParserExe;
 import com.carl.codegen.core.saver.CodeSaverExe;
@@ -11,6 +15,9 @@ import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.mapper.AppMapper;
 import com.carl.codegen.model.entity.App;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -94,11 +101,36 @@ public class AiCodeGenFacade {
                 yield processCodeStream(codeFlux, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             case VUE3 -> {
-                Flux<String> codeFlux = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateVue3CodeStreaming(appId, prompt);
-                yield processCodeStream(codeFlux, CodeGenTypeEnum.VUE3, appId);
+                TokenStream tokenStream = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateVue3CodeStreaming(appId, prompt);
+                yield processTokenStream(tokenStream);
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型" + type.getValue());
         };
+    }
+
+    private Flux<String> processTokenStream(TokenStream tokenStream) {
+        return Flux.create(sink -> {
+            tokenStream.onPartialResponse((String partialResponse) -> {
+                        AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
+                        sink.next(JSONUtil.toJsonStr(aiResponseMessage));
+                    })
+                    .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
+                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+                        sink.next(JSONUtil.toJsonStr(toolRequestMessage));
+                    })
+                    .onToolExecuted((ToolExecution toolExecution) -> {
+                        ToolResultMessage toolResultMessage = new ToolResultMessage(toolExecution);
+                        sink.next(JSONUtil.toJsonStr(toolResultMessage));
+                    })
+                    .onCompleteResponse((ChatResponse response) -> {
+                        sink.complete();
+                    })
+                    .onError((Throwable error) -> {
+                        error.printStackTrace();
+                        sink.error(error);
+                    })
+                    .start();
+        });
     }
 
     private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum type, Long appId) {

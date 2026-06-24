@@ -7,6 +7,7 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.AiCodeGenFacade;
+import com.carl.codegen.core.handler.StreamHandlerExecutor;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.exception.ThrowUtils;
@@ -26,7 +27,6 @@ import com.carl.codegen.mapper.AppMapper;
 import com.carl.codegen.service.AppService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -52,9 +52,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     private UserService userService;
     @Resource
     private AiCodeGenFacade aiCodeGenFacade;
-
     @Resource
     private ChatHistoryService chatHistoryService;
+    @Resource
+    private StreamHandlerExecutor streamHandlerExecutor;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -164,30 +165,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         statusUpdate.setId(appId);
         statusUpdate.setGenStatus(AppConstant.GEN_STATUS_GENERATING);
         this.updateById(statusUpdate);
-        // 保存对话历史
+        // 保存对话历史到数据库
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         // 调用 AI 生成代码
         Flux<String> codeFlux = aiCodeGenFacade.genAndSavestream(message, codeGenTypeEnum, appId);
-        // 流式响应 AI 回复 收集AI响应内容
-        StringBuilder aiResponseBuilder = new StringBuilder();
-        return codeFlux
-                .map(chunk -> {
-                    // 收集AI响应内容
-                    aiResponseBuilder.append(chunk);
-                    return chunk;
-                })
-                .doOnComplete(() -> {
-                    // 流式响应完成后，添加AI消息到对话历史
-                    String aiResponse = aiResponseBuilder.toString();
-                    if (StrUtil.isNotBlank(aiResponse)) {
-                        chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-                    }
-                })
-                .doOnError(error -> {
-                    // 如果AI回复失败，也要记录错误消息
-                    String errorMessage = "AI回复失败: " + error.getMessage();
-                    chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-                });
+        // 收集AI响应内容，并完成后保存到数据库对话历史
+        return streamHandlerExecutor.execute(codeFlux, chatHistoryService, appId, loginUser, codeGenTypeEnum);
     }
 
     @Override

@@ -15,7 +15,6 @@ import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.exception.ThrowUtils;
 import com.carl.codegen.model.dto.app.*;
 import com.carl.codegen.model.entity.User;
-import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import com.carl.codegen.model.vo.AppVO;
 import com.carl.codegen.service.UserService;
 import com.mybatisflex.core.paginate.Page;
