@@ -5,9 +5,12 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.carl.codegen.ai.model.message.*;
+import com.carl.codegen.constant.AppConstant;
+import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.model.enums.ChatHistoryMessageTypeEnum;
 import com.carl.codegen.model.entity.User;
 import com.carl.codegen.service.ChatHistoryService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -22,6 +25,9 @@ import java.util.Set;
 @Component
 public class JsonMessageStreamHandler {
 
+    @Resource
+    private VueBuilder vueBuilder;
+
     public Flux<String> handle(Flux<String> flux,
                                ChatHistoryService chatHistoryService,
                                long appId, User loginUser) {
@@ -33,6 +39,8 @@ public class JsonMessageStreamHandler {
                 .doOnComplete(() -> {
                     String aiResponse = responseCollector.toString();
                     chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/vue3_" + appId;
+                    vueBuilder.buildProjectAsync(projectPath);
                 })
                 .doOnError(error -> {
                     String errorMessage = "AI回复失败: " + error.getMessage();
@@ -49,6 +57,12 @@ public class JsonMessageStreamHandler {
                 String content = aiMessage.getContent();
                 responseCollector.append(content);
                 return content;
+            }
+            case THINKING -> {
+                ThinkingMessage thinking = JSONUtil.toBean(chunk, ThinkingMessage.class);
+                String content = thinking.getContent();
+                responseCollector.append("[思考] ").append(content).append("\n");
+                return "\n\n[深度思考]\n" + content + "\n\n";
             }
             case TOOL_REQUEST -> {
                 ToolRequestMessage toolRequest = JSONUtil.toBean(chunk, ToolRequestMessage.class);

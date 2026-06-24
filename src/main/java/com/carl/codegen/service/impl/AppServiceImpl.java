@@ -7,6 +7,7 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.AiCodeGenFacade;
+import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.core.handler.StreamHandlerExecutor;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
@@ -56,6 +57,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     private ChatHistoryService chatHistoryService;
     @Resource
     private StreamHandlerExecutor streamHandlerExecutor;
+    @Resource
+    private VueBuilder vueBuilder;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -192,6 +195,21 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         File sourceDir = new File(sourceDirPath);
         if (!sourceDir.exists() || !sourceDir.isDirectory()) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "应用代码不存在，请先生成应用代码");
+        }
+        // Vue 项目特殊处理，执行 Vue 项目构建命令
+        CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
+        if (codeGenTypeEnum == null) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型");
+        }
+        if (codeGenTypeEnum == CodeGenTypeEnum.VUE3) {
+            boolean buildResult = vueBuilder.buildProject(sourceDirPath);
+            ThrowUtils.throwIf(!buildResult, ErrorCode.OPERATION_ERROR, "Vue 项目构建失败，请重试");
+            // 检查 dist 目录是否存在
+            File distDir = new File(sourceDirPath, "dist");
+            ThrowUtils.throwIf(!distDir.exists(), ErrorCode.SYSTEM_ERROR, "Vue 项目构建完成但未生成 dist 目录");
+            // 复制 dist 目录到部署目录
+            sourceDir = distDir;
+            log.info("Vue 项目构建成功，将部署 dist 目录: {}", distDir.getAbsolutePath());
         }
         String deployDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator + deployKey;
         try {

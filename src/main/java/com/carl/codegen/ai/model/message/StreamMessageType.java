@@ -10,7 +10,8 @@ public enum StreamMessageType {
 
     AI_RESPONSE("ai_response", "AI响应"),
     TOOL_REQUEST("tool_request", "工具请求"),
-    TOOL_RESULT("tool_result", "工具执行结果");
+    TOOL_RESULT("tool_result", "工具执行结果"),
+    THINKING("thinking", "深度思考");
 
     private final String value;
     private final String text;

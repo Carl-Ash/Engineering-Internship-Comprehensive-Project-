@@ -5,6 +5,7 @@ import com.carl.codegen.ai.AiCodeGenServiceFactory;
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
 import com.carl.codegen.ai.model.message.AiResponseMessage;
+import com.carl.codegen.ai.model.message.ThinkingMessage;
 import com.carl.codegen.ai.model.message.ToolRequestMessage;
 import com.carl.codegen.ai.model.message.ToolResultMessage;
 import com.carl.codegen.constant.AppConstant;
@@ -16,7 +17,9 @@ import com.carl.codegen.mapper.AppMapper;
 import com.carl.codegen.model.entity.App;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.tool.BeforeToolExecution;
 import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -114,8 +117,12 @@ public class AiCodeGenFacade {
                         AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
                         sink.next(JSONUtil.toJsonStr(aiResponseMessage));
                     })
-                    .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
-                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+                    .onPartialThinking((PartialThinking partialThinking) -> {
+                        ThinkingMessage thinkingMessage = new ThinkingMessage(partialThinking);
+                        sink.next(JSONUtil.toJsonStr(thinkingMessage));
+                    })
+                    .beforeToolExecution((BeforeToolExecution before) -> {
+                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(before.request());
                         sink.next(JSONUtil.toJsonStr(toolRequestMessage));
                     })
                     .onToolExecuted((ToolExecution toolExecution) -> {
