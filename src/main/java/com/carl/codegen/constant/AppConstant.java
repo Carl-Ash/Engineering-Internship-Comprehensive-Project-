@@ -43,4 +43,7 @@ public interface AppConstant {
     String VISIBILITY_PUBLIC = "public";
     /** 可见范围：私有 */
     String VISIBILITY_PRIVATE = "private";
+
+    /** 默认应用封面 */
+    String DEFAULT_COVER = "";
 }

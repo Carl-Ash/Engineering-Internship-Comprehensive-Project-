@@ -5,8 +5,10 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import com.carl.codegen.config.CosClientConfig;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.AiCodeGenFacade;
+import com.carl.codegen.manager.CosManager;
 import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.core.handler.StreamHandlerExecutor;
 import com.carl.codegen.exception.BusinessException;
@@ -20,6 +22,7 @@ import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import com.carl.codegen.model.vo.AppVO;
 import com.carl.codegen.model.vo.UserVO;
 import com.carl.codegen.service.ChatHistoryService;
+import com.carl.codegen.service.ScreenshotService;
 import com.carl.codegen.service.UserService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
@@ -59,6 +62,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     private StreamHandlerExecutor streamHandlerExecutor;
     @Resource
     private VueBuilder vueBuilder;
+    @Resource
+    private ScreenshotService screenshotService;
+    @Resource
+    private CosManager cosManager;
+    @Resource
+    private CosClientConfig cosClientConfig;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -223,7 +232,11 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         updateApp.setDeployedTime(LocalDateTime.now());
         boolean updateResult = this.updateById(updateApp);
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
-        return String.format("%s/deploy/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
+        // 构建应用访问URL
+        String appDeployUrl = String.format("%s/deploy/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
+        // 异步生成截图并更新应用封面
+        generateAppScreenshotAsync(appId, appDeployUrl);
+        return appDeployUrl;
     }
 
     /**
@@ -256,10 +269,43 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         return "已下线";
     }
 
+    @Override
+    public void generateAppScreenshotAsync(Long appId, String appUrl) {
+        Thread.startVirtualThread(() -> {
+            try {
+                String screenshotUrl = screenshotService.generateAndUploadScreenshot(appUrl);
+                if (StrUtil.isBlank(screenshotUrl)) {
+                    screenshotUrl = AppConstant.DEFAULT_COVER;
+                }
+                App updateApp = new App();
+                updateApp.setId(appId);
+                updateApp.setCover(screenshotUrl);
+                boolean updated = this.updateById(updateApp);
+                ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新应用封面字段失败");
+            } catch (Exception e) {
+                log.error("异步生成截图失败, appId: {}", appId, e);
+                App updateApp = new App();
+                updateApp.setId(appId);
+                updateApp.setCover(AppConstant.DEFAULT_COVER);
+                this.updateById(updateApp);
+            }
+        });
+    }
+
     /**
      * 删除应用并清理关联文件
      */
     public void deleteAppWithCleanup(Long appId, App app) {
+        // 清理COS封面
+        String cover = app.getCover();
+        if (StrUtil.isNotBlank(cover)) {
+            try {
+                String cosKey = cover.substring(cosClientConfig.getHost().length());
+                cosManager.deleteObject(cosKey);
+            } catch (Exception e) {
+                // 删除失败不阻塞
+            }
+        }
         // 清理代码生成目录
         String codeGenType = app.getCodeGenType();
         if (StrUtil.isNotBlank(codeGenType)) {

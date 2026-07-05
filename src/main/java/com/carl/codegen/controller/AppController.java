@@ -16,11 +16,13 @@ import com.carl.codegen.exception.ThrowUtils;
 import com.carl.codegen.model.dto.app.*;
 import com.carl.codegen.model.entity.User;
 import com.carl.codegen.model.vo.AppVO;
+import com.carl.codegen.service.ProjectDownloadService;
 import com.carl.codegen.service.UserService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +31,7 @@ import com.carl.codegen.service.AppService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +48,8 @@ public class AppController {
 
     @Resource
     private AiCodeGenFacade aiCodeGenFacade;
+    @Resource
+    private ProjectDownloadService projectDownloadService;
 
     // ==================== AI 代码生成 ====================
 
@@ -184,6 +189,30 @@ public class AppController {
         updateApp.setVersion(targetVersion);
         appService.updateById(updateApp);
         return ResultUtils.success("已回退到版本 " + targetVersion);
+    }
+
+    // ==================== 下载 ====================
+
+    /** 下载应用代码 */
+    @GetMapping("/download/{appId}")
+    public void downloadAppCode(@PathVariable Long appId,
+                                HttpServletRequest request,
+                                HttpServletResponse response) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID无效");
+        App app = appService.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        User loginUser = userService.getLoginUser(request);
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限下载该应用代码");
+        }
+        String codeGenType = app.getCodeGenType();
+        String sourceDirName = codeGenType + "_" + appId;
+        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        File sourceDir = new File(sourceDirPath);
+        ThrowUtils.throwIf(!sourceDir.exists() || !sourceDir.isDirectory(),
+                ErrorCode.NOT_FOUND_ERROR, "应用代码不存在，请先生成代码");
+        String downloadFileName = String.valueOf(appId);
+        projectDownloadService.downloadProjectAsZip(sourceDirPath, downloadFileName, response);
     }
 
     // ==================== 查询 ====================

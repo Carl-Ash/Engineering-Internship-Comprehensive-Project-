@@ -1,6 +1,6 @@
 package com.carl.codegen.manager;
 
-import com.carl.codegen.config.CosConfig;
+import com.carl.codegen.config.CosClientConfig;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.PutObjectRequest;
 import com.qcloud.cos.model.PutObjectResult;
@@ -20,7 +20,7 @@ import java.io.File;
 public class CosManager {
 
     @Resource
-    private CosConfig cosConfig;
+    private CosClientConfig cosClientConfig;
 
     @Resource
     private COSClient cosClient;
@@ -33,7 +33,7 @@ public class CosManager {
      * @return 上传结果
      */
     public PutObjectResult putObject(String key, File file) {
-        PutObjectRequest putObjectRequest = new PutObjectRequest(cosConfig.getBucket(), key, file);
+        PutObjectRequest putObjectRequest = new PutObjectRequest(cosClientConfig.getBucket(), key, file);
         return cosClient.putObject(putObjectRequest);
     }
 
@@ -47,12 +47,26 @@ public class CosManager {
     public String uploadFile(String key, File file) {
         PutObjectResult result = putObject(key, file);
         if (result != null) {
-            String url = String.format("%s/%s", cosConfig.getHost(), key);
+            String url = String.format("%s%s", cosClientConfig.getHost(), key);
             log.info("文件上传COS成功: {} -> {}", file.getName(), url);
             return url;
         } else {
             log.error("文件上传COS失败，返回结果为空");
             return null;
+        }
+    }
+
+    /**
+     * 删除对象
+     *
+     * @param key 对象键
+     */
+    public void deleteObject(String key) {
+        try {
+            cosClient.deleteObject(cosClientConfig.getBucket(), key);
+            log.info("COS对象删除成功: {}", key);
+        } catch (Exception e) {
+            log.error("COS对象删除失败: {}", key, e);
         }
     }
 }

@@ -6,7 +6,6 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
@@ -30,32 +29,34 @@ import java.util.UUID;
  * Selenium 4.x 内置 Selenium Manager，自动发现并管理 Edge 驱动。
  */
 @Slf4j
-public class ScreenShotUtils {
+public class ScreenshotUtils {
 
-    private static volatile WebDriver driver;
+    private static final ThreadLocal<WebDriver> DRIVER_THREAD_LOCAL = new ThreadLocal<>();
 
     /**
-     * 获取浏览器驱动实例（懒加载，双重检查）
+     * 获取当前线程绑定的浏览器驱动实例（懒加载）
      */
     private static WebDriver getDriver() {
+        WebDriver driver = DRIVER_THREAD_LOCAL.get();
         if (driver == null) {
-            synchronized (ScreenShotUtils.class) {
-                if (driver == null) {
-                    driver = initEdgeDriver(1600, 900);
-                }
-            }
+            driver = initEdgeDriver(1600, 900);
+            DRIVER_THREAD_LOCAL.set(driver);
         }
         return driver;
     }
 
     /**
-     * 释放浏览器驱动资源
+     * 释放当前线程的WebDriver资源
      */
-    @PreDestroy
-    public void destroy() {
+    public static void quitDriver() {
+        WebDriver driver = DRIVER_THREAD_LOCAL.get();
         if (driver != null) {
-            driver.quit();
-            driver = null;
+            try {
+                driver.quit();
+            } catch (Exception e) {
+                log.error("关闭WebDriver失败", e);
+            }
+            DRIVER_THREAD_LOCAL.remove();
         }
     }
 
@@ -224,6 +225,24 @@ public class ScreenShotUtils {
         } catch (Exception e) {
             log.error("保存当前页面截图失败", e);
             return null;
+        } finally {
+            quitDriver();
+        }
+    }
+
+    /**
+     * 清理过期的临时截图文件
+     */
+    public static void cleanupTempFiles() {
+        String screenshotDir = System.getProperty("user.dir") + "/tmp/screenshots";
+        File dir = new File(screenshotDir);
+        if (dir.exists() && dir.isDirectory()) {
+            try {
+                FileUtil.del(dir);
+                log.info("临时截图目录已清理: {}", screenshotDir);
+            } catch (Exception e) {
+                log.error("清理临时截图目录失败: {}", screenshotDir, e);
+            }
         }
     }
 }

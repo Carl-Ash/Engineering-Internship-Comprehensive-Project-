@@ -20,6 +20,7 @@ export const getDeployUrl = (deployKey: string) => {
 // 获取静态资源预览URL
 export const getStaticPreviewUrl = (codeGenType: string, appId: string) => {
   const base = `${STATIC_BASE_URL}/${codeGenType}_${appId}/`
+  // Vue3 项目模式需要特殊处理, 直接返回 dist 目录下的 index.html
   if (codeGenType === CodeGenTypeEnum.VUE3) {
     return `${base}dist/index.html`
   }

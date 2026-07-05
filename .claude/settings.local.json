@@ -46,7 +46,10 @@
       "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
       "Read(//c/Program Files/Microsoft/Edge/Application/**)",
       "Bash(reg query *)",
-      "Bash(cmd.exe *)"
+      "Bash(cmd.exe *)",
+      "Bash(git mv *)",
+      "Bash(git add *)",
+      "Bash(git rm *)"
     ]
   }
 }

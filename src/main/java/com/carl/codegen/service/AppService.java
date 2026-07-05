@@ -57,4 +57,9 @@ public interface AppService extends IService<App> {
      * 删除应用并清理关联文件
      */
     void deleteAppWithCleanup(Long appId, App app);
+
+    /**
+     * 异步生成应用截图并更新封面
+     */
+    void generateAppScreenshotAsync(Long appId, String appUrl);
 }
