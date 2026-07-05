@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * AI代码生成类型路由服务工厂
+ * AI代码生成类型路由器工厂
  *
  * @author Carl
  */

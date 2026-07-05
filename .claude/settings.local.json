@@ -60,7 +60,28 @@
       "Bash(mvn --version)",
       "Bash(mvn -DincludeScope=runtime -Dmdep.outputFile=/tmp/cp.txt dependency:build-classpath)",
       "Bash(npx vue-tsc *)",
-      "Bash(git -C \"C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\" rm \"src/main/java/com/carl/codegen/ai/AiCodeGenTypeRoutingService.java\" \"src/main/java/com/carl/codegen/ai/AiCodeGenTypeRoutingServiceFactory.java\")"
+      "Bash(git -C \"C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\" rm \"src/main/java/com/carl/codegen/ai/AiCodeGenTypeRoutingService.java\" \"src/main/java/com/carl/codegen/ai/AiCodeGenTypeRoutingServiceFactory.java\")",
+      "Bash(cd \"C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\")",
+      "Bash(export JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\")",
+      "Bash(mysql *)",
+      "Bash(redis-cli INFO server)",
+      "Bash(pacman -Ss redis-json)",
+      "Bash(pacman -Ss redis)",
+      "Read(//c/mingw64/bin/**)",
+      "Read(//usr/**)",
+      "Bash(redis-cli MODULE *)",
+      "Bash(docker --version)",
+      "Bash(docker pull *)",
+      "Bash(docker info *)",
+      "Bash(docker stop *)",
+      "Bash(docker rm *)",
+      "Bash(redis-cli SHUTDOWN *)",
+      "Bash(docker run *)",
+      "Bash(redis-cli PING)",
+      "Bash(docker port *)",
+      "Bash(taskkill //PID 9072 //F)",
+      "Bash(redis-cli -p 6380 PING)",
+      "Bash(redis-cli *)"
     ]
   }
 }

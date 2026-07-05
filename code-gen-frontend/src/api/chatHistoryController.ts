@@ -50,6 +50,11 @@ export async function listAppChatHistory(
   })
 }
 
+/** 获取导出对话历史的URL GET /chatHistory/app/${param0}/export */
+export function exportChatHistoryUrl(appId: number | string) {
+  return `${import.meta.env.VITE_API_BASE_URL || '/api'}/chatHistory/app/${appId}/export`
+}
+
 /** 此处后端没有提供注释 GET /chatHistory/app/${param0}/export */
 export async function exportChatHistory(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

@@ -69,12 +69,34 @@
           </div>
         </div>
 
+        <!-- 选中元素提示 -->
+        <a-alert
+          v-if="selectedElementInfo"
+          class="selected-element-alert"
+          type="info"
+          closable
+          @close="clearSelectedElement"
+        >
+          <template #message>
+            <div class="element-info">
+              <div class="element-tag-line">
+                <span class="element-tag-label">选中元素：{{ selectedElementInfo.tagName.toLowerCase() }}</span>
+                <span v-if="selectedElementInfo.id" class="element-id">#{{ selectedElementInfo.id }}</span>
+                <span v-if="selectedElementInfo.className" class="element-class">.{{ selectedElementInfo.className.split(' ').join('.') }}</span>
+              </div>
+              <div class="element-selector">
+                选择器: <code>{{ selectedElementInfo.selector }}</code>
+              </div>
+            </div>
+          </template>
+        </a-alert>
+
         <!-- 输入区 -->
         <div class="input-container">
           <div class="input-wrapper">
             <a-textarea
               v-model:value="userInput"
-              :placeholder="isOwner ? '继续描述你想要的修改...' : '无法在别人的作品下对话'"
+              :placeholder="getInputPlaceholder()"
               :rows="3"
               :maxlength="2000"
               @keydown.enter.exact.prevent="sendMessage"
@@ -106,6 +128,16 @@
             <a-tag v-if="previewReady && previewUrl" color="success" size="small">已就绪</a-tag>
           </div>
           <div class="preview-actions">
+            <a-button
+              v-if="isOwner && previewUrl"
+              size="small"
+              :danger="isEditMode"
+              @click="toggleEditMode"
+              :class="{ 'edit-mode-active': isEditMode }"
+            >
+              <template #icon><EditOutlined /></template>
+              {{ isEditMode ? '退出编辑' : '编辑' }}
+            </a-button>
             <a-button v-if="previewUrl" size="small" @click="refreshPreview">
               <template #icon><ReloadOutlined /></template>
             </a-button>
@@ -187,7 +219,9 @@ import {
   ReloadOutlined,
   CheckCircleOutlined,
   DownloadOutlined,
+  EditOutlined,
 } from '@ant-design/icons-vue'
+import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 
 const route = useRoute()
 const router = useRouter()
@@ -233,6 +267,15 @@ const undeploying = ref(false)
 const downloading = ref(false)
 const deployModalVisible = ref(false)
 const deployUrl = ref('')
+
+// 可视化编辑
+const isEditMode = ref(false)
+const selectedElementInfo = ref<ElementInfo | null>(null)
+const visualEditor = new VisualEditor({
+  onElementSelected: (elementInfo: ElementInfo) => {
+    selectedElementInfo.value = elementInfo
+  },
+})
 
 const genStatusTag = computed(() => {
   switch (appInfo.value?.genStatus) {
@@ -374,13 +417,33 @@ const sendMessage = async () => {
     return
   }
 
-  const msg = userInput.value.trim()
+  let message = userInput.value.trim()
+  // 有选中元素时，拼接元素信息到提示词中
+  if (selectedElementInfo.value) {
+    let elementContext = `\n\n选中元素信息：`
+    if (selectedElementInfo.value.pagePath) {
+      elementContext += `\n- 页面路径: ${selectedElementInfo.value.pagePath}`
+    }
+    elementContext += `\n- 标签: ${selectedElementInfo.value.tagName.toLowerCase()}\n- 选择器: ${selectedElementInfo.value.selector}`
+    if (selectedElementInfo.value.textContent) {
+      elementContext += `\n- 当前内容: ${selectedElementInfo.value.textContent.substring(0, 100)}`
+    }
+    message += elementContext
+  }
   userInput.value = ''
 
   messages.value.push({
     type: 'user',
-    content: msg,
+    content: message,
   })
+
+  // 清除选中元素并退出编辑模式
+  if (selectedElementInfo.value) {
+    clearSelectedElement()
+    if (isEditMode.value) {
+      toggleEditMode()
+    }
+  }
 
   const aiMessageIndex = messages.value.length
   messages.value.push({
@@ -393,7 +456,7 @@ const sendMessage = async () => {
   scrollToBottom(true)
 
   isGenerating.value = true
-  await generateCode(msg, aiMessageIndex)
+  await generateCode(message, aiMessageIndex)
 }
 
 const generateCode = async (userMessage: string, aiMessageIndex: number) => {
@@ -630,6 +693,33 @@ const downloadCode = async () => {
   }
 }
 
+// 可视化编辑
+const toggleEditMode = () => {
+  const iframe = document.querySelector('.preview-iframe') as HTMLIFrameElement
+  if (!iframe) {
+    message.warning('请等待页面加载完成')
+    return
+  }
+  if (!previewReady.value) {
+    message.warning('请等待页面加载完成')
+    return
+  }
+  const newEditMode = visualEditor.toggleEditMode()
+  isEditMode.value = newEditMode
+}
+
+const clearSelectedElement = () => {
+  selectedElementInfo.value = null
+  visualEditor.clearSelection()
+}
+
+const getInputPlaceholder = () => {
+  if (selectedElementInfo.value) {
+    return `正在编辑 ${selectedElementInfo.value.tagName.toLowerCase()} 元素，描述您想要的修改...`
+  }
+  return isOwner.value ? '继续描述你想要的修改...' : '无法在别人的作品下对话'
+}
+
 const openInNewTab = () => {
   if (previewUrl.value) {
     window.open(previewUrl.value, '_blank')
@@ -644,6 +734,11 @@ const openDeployedSite = () => {
 
 const onIframeLoad = () => {
   previewReady.value = true
+  const iframe = document.querySelector('.preview-iframe') as HTMLIFrameElement
+  if (iframe) {
+    visualEditor.init(iframe)
+    visualEditor.onIframeLoad()
+  }
 }
 
 const refreshPreview = () => {
@@ -716,6 +811,9 @@ const deleteApp = async () => {
 
 onMounted(() => {
   fetchAppInfo()
+  window.addEventListener('message', (event) => {
+    visualEditor.handleIframeMessage(event)
+  })
 })
 
 onUnmounted(() => {
@@ -1151,6 +1249,61 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border: none;
+}
+
+/* 编辑模式按钮 */
+.edit-mode-active {
+  background-color: #52c41a !important;
+  border-color: #52c41a !important;
+  color: #fff !important;
+}
+
+.edit-mode-active:hover {
+  background-color: #73d13d !important;
+  border-color: #73d13d !important;
+  color: #fff !important;
+}
+
+/* 选中元素提示 */
+.selected-element-alert {
+  margin: 0 14px 4px;
+}
+
+.element-info {
+  line-height: 1.5;
+}
+
+.element-tag-line {
+  margin-bottom: 4px;
+}
+
+.element-tag-label {
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.element-id {
+  color: #52c41a;
+  margin-left: 4px;
+}
+
+.element-class {
+  color: #faad14;
+  margin-left: 4px;
+}
+
+.element-selector {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.element-selector code {
+  font-family: 'Monaco', 'Menlo', monospace;
+  background: #f6f8fa;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #d73a49;
 }
 
 /* ====== 响应式 ====== */

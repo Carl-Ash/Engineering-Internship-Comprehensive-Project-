@@ -4,7 +4,7 @@ import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import dev.langchain4j.service.SystemMessage;
 
 /**
- * AI代码生成类型智能路由服务
+ * AI代码生成类型智能路由器
  * 使用结构化输出直接返回枚举类型
  *
  * @author Carl

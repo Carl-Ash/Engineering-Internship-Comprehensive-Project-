@@ -70,7 +70,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     @Resource
     private CosClientConfig cosClientConfig;
     @Resource
-    private AiCodeGenRouter aiCodeGenTypeRoutingService;
+    private AiCodeGenRouter aiCodeGenRouter;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -79,7 +79,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         App app = new App();
         app.setInitPrompt(initPrompt);
         // 使用 AI 智能选择代码生成类型
-        CodeGenTypeEnum selectedCodeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
+        CodeGenTypeEnum selectedCodeGenType = aiCodeGenRouter.routeCodeGenType(initPrompt);
         app.setCodeGenType(selectedCodeGenType.getValue());
         // AI 生成应用名称：取 prompt 前 30 字
         String autoName = initPrompt.length() > 30 ? initPrompt.substring(0, 30) : initPrompt;
