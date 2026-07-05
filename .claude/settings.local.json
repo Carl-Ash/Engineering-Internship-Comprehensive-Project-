@@ -49,7 +49,18 @@
       "Bash(cmd.exe *)",
       "Bash(git mv *)",
       "Bash(git add *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(npm run *)",
+      "Bash(mvn spring-boot:run -q)",
+      "Bash(mvn clean *)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\" mvn clean compile -DskipTests)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\" mvn spring-boot:run -Dspring-boot.run.profiles=local)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\" mvn compile -DskipTests)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\" mvn package -DskipTests -q)",
+      "Bash(mvn --version)",
+      "Bash(mvn -DincludeScope=runtime -Dmdep.outputFile=/tmp/cp.txt dependency:build-classpath)",
+      "Bash(npx vue-tsc *)",
+      "Bash(git -C \"C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\" rm \"src/main/java/com/carl/codegen/ai/AiCodeGenTypeRoutingService.java\" \"src/main/java/com/carl/codegen/ai/AiCodeGenTypeRoutingServiceFactory.java\")"
     ]
   }
 }

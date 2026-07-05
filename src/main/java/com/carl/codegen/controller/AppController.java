@@ -205,6 +205,8 @@ public class AppController {
         if (!app.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限下载该应用代码");
         }
+        ThrowUtils.throwIf(!AppConstant.GEN_STATUS_COMPLETED.equals(app.getGenStatus()),
+                ErrorCode.OPERATION_ERROR, "应用代码尚未生成完成，无法下载");
         String codeGenType = app.getCodeGenType();
         String sourceDirName = codeGenType + "_" + appId;
         String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
@@ -213,6 +215,12 @@ public class AppController {
                 ErrorCode.NOT_FOUND_ERROR, "应用代码不存在，请先生成代码");
         String downloadFileName = String.valueOf(appId);
         projectDownloadService.downloadProjectAsZip(sourceDirPath, downloadFileName, response);
+        // 下载成功后累加下载次数
+        int currentCount = app.getDownloadCount() != null ? app.getDownloadCount() : 0;
+        App updateApp = new App();
+        updateApp.setId(appId);
+        updateApp.setDownloadCount(currentCount + 1);
+        appService.updateById(updateApp);
     }
 
     // ==================== 查询 ====================

@@ -95,6 +95,12 @@ public class App implements Serializable {
     private String visibility;
 
     /**
+     * 下载次数
+     */
+    @Column("downloadCount")
+    private Integer downloadCount;
+
+    /**
      * 当前版本号
      */
     @Column("version")

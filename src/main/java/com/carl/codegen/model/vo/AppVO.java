@@ -69,6 +69,11 @@ public class AppVO implements Serializable {
     private String visibility;
 
     /**
+     * 下载次数
+     */
+    private Integer downloadCount;
+
+    /**
      * 当前版本号
      */
     private Integer version;

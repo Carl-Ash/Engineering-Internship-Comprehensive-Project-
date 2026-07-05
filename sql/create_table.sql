@@ -68,6 +68,7 @@ create table chat_history
 
 USE code_gen;
 ALTER TABLE app
-    ADD COLUMN genStatus  varchar(32) DEFAULT 'none'   NOT NULL COMMENT '生成状态',
-    ADD COLUMN visibility varchar(32) DEFAULT 'public' NOT NULL COMMENT '可见范围',
-    ADD COLUMN version    int         DEFAULT 0        NOT NULL COMMENT '版本号';
+    ADD COLUMN genStatus     varchar(32) DEFAULT 'none'   NOT NULL COMMENT '生成状态',
+    ADD COLUMN visibility    varchar(32) DEFAULT 'public' NOT NULL COMMENT '可见范围',
+    ADD COLUMN version       int         DEFAULT 0        NOT NULL COMMENT '版本号',
+    ADD COLUMN downloadCount int         DEFAULT 0        NOT NULL COMMENT '下载次数';

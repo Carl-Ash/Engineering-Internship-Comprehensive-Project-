@@ -53,6 +53,7 @@ declare namespace API {
     userId?: number
     genStatus?: string
     visibility?: string
+    downloadCount?: number
     version?: number
     createTime?: string
     updateTime?: string
@@ -154,6 +155,14 @@ declare namespace API {
 
   type DeleteRequest = {
     id?: number
+  }
+
+  type downloadAppCodeParams = {
+    appId: number
+  }
+
+  type exportChatHistoryParams = {
+    appId: number
   }
 
   type getAppVOByIdByAdminParams = {

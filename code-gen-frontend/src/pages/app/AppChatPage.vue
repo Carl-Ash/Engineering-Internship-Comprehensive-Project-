@@ -21,6 +21,10 @@
           <a-button v-if="isOwner || isAdmin" size="small" @click="showAppDetail">应用详情</a-button>
           <a-button v-if="isOwner && isGenerating" size="small" danger @click="stopGeneration">停止生成</a-button>
           <a-button v-if="isOwner && appInfo?.deployKey" size="small" @click="undeployApp" :loading="undeploying">下线</a-button>
+          <a-button v-if="isOwner && appInfo?.genStatus === 'completed'" size="small" @click="downloadCode" :loading="downloading">
+            <template #icon><DownloadOutlined /></template>
+            下载代码
+          </a-button>
           <a-button v-if="isOwner" type="primary" size="small" @click="deployApp" :loading="deploying">部署</a-button>
         </a-space>
       </div>
@@ -182,6 +186,7 @@ import {
   ArrowLeftOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -225,6 +230,7 @@ const codeGenTypeLabel = computed(() => {
 
 const deploying = ref(false)
 const undeploying = ref(false)
+const downloading = ref(false)
 const deployModalVisible = ref(false)
 const deployUrl = ref('')
 
@@ -573,6 +579,54 @@ const deployApp = async () => {
     message.error('部署失败，请重试')
   } finally {
     deploying.value = false
+  }
+}
+
+const downloadCode = async () => {
+  if (!appId.value) {
+    message.error('应用ID不存在')
+    return
+  }
+
+  downloading.value = true
+  try {
+    const baseURL = request.defaults.baseURL || API_BASE_URL
+    const url = `${baseURL}/app/download/${appId.value}`
+    const response = await fetch(url, { credentials: 'include' })
+    if (!response.ok) {
+      const errorText = await response.text()
+      if (response.status === 401 || errorText.includes('未登录')) {
+        message.error('请先登录后再下载')
+      } else if (response.status === 404) {
+        message.error('应用代码不存在，请先生成代码')
+      } else {
+        message.error('下载失败，请重试')
+      }
+      return
+    }
+    const blob = await response.blob()
+    const contentDisposition = response.headers.get('Content-Disposition')
+    let fileName = `${appId.value}.zip`
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i)
+      if (match && match[1]) {
+        fileName = decodeURIComponent(match[1].trim())
+      }
+    }
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(downloadUrl)
+    message.success('下载成功')
+  } catch (error) {
+    console.error('下载失败：', error)
+    message.error('下载失败，请检查网络')
+  } finally {
+    downloading.value = false
   }
 }
 

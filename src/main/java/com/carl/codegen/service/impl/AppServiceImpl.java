@@ -5,6 +5,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import com.carl.codegen.ai.AiCodeGenRouter;
 import com.carl.codegen.config.CosClientConfig;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.AiCodeGenFacade;
@@ -68,6 +69,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     private CosManager cosManager;
     @Resource
     private CosClientConfig cosClientConfig;
+    @Resource
+    private AiCodeGenRouter aiCodeGenTypeRoutingService;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -75,11 +78,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
         App app = new App();
         app.setInitPrompt(initPrompt);
-        // 代码生成类型：优先使用请求中的值，默认 multi_file
-        String codeGenType = StrUtil.isNotBlank(appAddRequest.getCodeGenType())
-                ? appAddRequest.getCodeGenType()
-                : CodeGenTypeEnum.MULTI_FILE.getValue();
-        app.setCodeGenType(codeGenType);
+        // 使用 AI 智能选择代码生成类型
+        CodeGenTypeEnum selectedCodeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
+        app.setCodeGenType(selectedCodeGenType.getValue());
         // AI 生成应用名称：取 prompt 前 30 字
         String autoName = initPrompt.length() > 30 ? initPrompt.substring(0, 30) : initPrompt;
         app.setAppName(autoName);
@@ -91,6 +92,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
                 : AppConstant.VISIBILITY_PUBLIC);
         boolean result = this.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        log.info("应用创建成功，ID: {}, 类型: {}", app.getId(), selectedCodeGenType.getValue());
         return app.getId();
     }
 
