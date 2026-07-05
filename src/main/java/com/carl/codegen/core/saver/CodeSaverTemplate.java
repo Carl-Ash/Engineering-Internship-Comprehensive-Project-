@@ -1,8 +1,8 @@
 package com.carl.codegen.core.saver;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
@@ -15,8 +15,7 @@ import java.nio.charset.StandardCharsets;
  */
 public abstract class CodeSaverTemplate<T> {
 
-    // 默认输出目录
-    private static final String OUTPUT_ROOT = System.getProperty("user.dir") + "/tmp/code-output";
+    private static final String OUTPUT_ROOT = AppConstant.CODE_OUTPUT_ROOT_DIR;
 
     /**
      * 保存代码文件的模板方法

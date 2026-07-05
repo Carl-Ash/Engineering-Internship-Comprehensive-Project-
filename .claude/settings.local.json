@@ -41,7 +41,12 @@
       "Bash(javap 'dev/langchain4j/model/openai/OpenAiStreamingChatModel$OpenAiStreamingChatModelBuilder.class')",
       "Bash(javap -c \"dev/langchain4j/model/openai/OpenAiStreamingChatModel.class\")",
       "Bash(javap -c -p \"dev/langchain4j/model/openai/OpenAiStreamingChatModel.class\")",
-      "Bash(javap *)"
+      "Bash(javap *)",
+      "Bash(where msedgedriver *)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
+      "Read(//c/Program Files/Microsoft/Edge/Application/**)",
+      "Bash(reg query *)",
+      "Bash(cmd.exe *)"
     ]
   }
 }

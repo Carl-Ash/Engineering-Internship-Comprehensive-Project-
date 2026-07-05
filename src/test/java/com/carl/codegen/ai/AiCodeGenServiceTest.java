@@ -35,7 +35,7 @@ class AiCodeGenServiceTest {
 
     @Test
     void generateVue3CodeStreaming() {
-        Flux<String> codeStream = aiCodeGenFacade.genAndSavestream(
+        Flux<String> codeStream = aiCodeGenFacade.genAndSaveStream(
                 "简单的任务记录网站，总代码量不超过200行",
                 CodeGenTypeEnum.VUE3, 1L);
         List<String> result = codeStream.collectList().block();

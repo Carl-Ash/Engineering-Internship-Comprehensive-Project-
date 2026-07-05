@@ -90,7 +90,7 @@ public class AiCodeGenFacade {
     /**
      * 流式生成代码并保存，实时透传 AI 输出，流结束后自动解析并写入文件。
      */
-    public Flux<String> genAndSavestream(String prompt, CodeGenTypeEnum type, Long appId) {
+    public Flux<String> genAndSaveStream(String prompt, CodeGenTypeEnum type, Long appId) {
         if (type == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
         }
@@ -133,7 +133,7 @@ public class AiCodeGenFacade {
                         sink.complete();
                     })
                     .onError((Throwable error) -> {
-                        error.printStackTrace();
+                        log.error("流式生成失败", error);
                         sink.error(error);
                     })
                     .start();
@@ -150,15 +150,10 @@ public class AiCodeGenFacade {
                     try {
                         App app = appMapper.selectOneById(appId);
                         int newVersion = (app != null && app.getVersion() != null) ? app.getVersion() + 1 : 1;
-                        if (type == CodeGenTypeEnum.VUE3) {
-                            // VUE3 通过工具调用写入文件，无需额外解析保存
-                            log.info("VUE3 生成完成，appId: {}，版本：{}", appId, newVersion);
-                        } else {
-                            String fullCode = codeBuilder.toString();
-                            Object parsed = CodeParserExe.executeParser(fullCode, type);
-                            File savedDir = CodeSaverExe.executeSaver(parsed, type, appId);
-                            log.info("保存成功，路径：{}，版本：{}", savedDir.getAbsolutePath(), newVersion);
-                        }
+                        String fullCode = codeBuilder.toString();
+                        Object parsed = CodeParserExe.executeParser(fullCode, type);
+                        File savedDir = CodeSaverExe.executeSaver(parsed, type, appId);
+                        log.info("保存成功，路径：{}，版本：{}", savedDir.getAbsolutePath(), newVersion);
                         updateAppStatus(appId, AppConstant.GEN_STATUS_COMPLETED, newVersion);
                     } catch (Exception e) {
                         log.error("保存失败: {}", e.getMessage());

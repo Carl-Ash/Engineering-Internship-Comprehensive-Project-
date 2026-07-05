@@ -218,7 +218,9 @@ const iframeKey = ref(0)
 const codeGenTypeLabel = computed(() => {
   const type = appInfo.value?.codeGenType
   if (!type) return ''
-  return type === 'html' ? 'HTML 模式' : '多文件模式'
+  if (type === 'html') return 'HTML 模式'
+  if (type === 'vue3') return 'Vue3 模式'
+  return '多文件模式'
 })
 
 const deploying = ref(false)

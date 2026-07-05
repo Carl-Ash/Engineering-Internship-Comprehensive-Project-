@@ -1,6 +1,5 @@
 package com.carl.codegen.core.parser;
 
-import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
 
 import java.util.regex.Matcher;

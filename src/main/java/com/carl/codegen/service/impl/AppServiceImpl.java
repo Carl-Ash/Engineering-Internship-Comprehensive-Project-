@@ -171,7 +171,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         // 保存对话历史到数据库
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         // 调用 AI 生成代码
-        Flux<String> codeFlux = aiCodeGenFacade.genAndSavestream(message, codeGenTypeEnum, appId);
+        Flux<String> codeFlux = aiCodeGenFacade.genAndSaveStream(message, codeGenTypeEnum, appId);
         // 收集AI响应内容，并完成后保存到数据库对话历史
         return streamHandlerExecutor.execute(codeFlux, chatHistoryService, appId, loginUser, codeGenTypeEnum);
     }
