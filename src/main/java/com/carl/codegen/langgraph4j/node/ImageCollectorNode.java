@@ -1,19 +1,16 @@
 package com.carl.codegen.langgraph4j.node;
 
-import com.carl.codegen.langgraph4j.state.ImageCategoryEnum;
-import com.carl.codegen.langgraph4j.state.ImageResource;
+import com.carl.codegen.langgraph4j.ai.ImageCollectService;
 import com.carl.codegen.langgraph4j.state.WorkflowContext;
+import com.carl.codegen.utils.SpringContextUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.AsyncNodeAction;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 
-import java.util.Arrays;
-import java.util.List;
-
 import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
 /**
- * 图片收集节点 — 从用户输入中提取图片资源。
+ * 图片收集节点 — 调用 AI 服务收集图片资源。
  */
 @Slf4j
 public class ImageCollectorNode {
@@ -21,25 +18,18 @@ public class ImageCollectorNode {
     public static AsyncNodeAction<MessagesState<String>> create() {
         return node_async(state -> {
             WorkflowContext context = WorkflowContext.fromState(state);
-            log.info("执行节点: 图片收集");
-
-            // TODO: 实际执行图片收集逻辑
-            List<ImageResource> imageResources = Arrays.asList(
-                    ImageResource.builder()
-                            .category(ImageCategoryEnum.CONTENT)
-                            .description("示例图片1")
-                            .url("https://example.com/image1.png")
-                            .build(),
-                    ImageResource.builder()
-                            .category(ImageCategoryEnum.LOGO)
-                            .description("示例图片2")
-                            .url("https://example.com/logo.png")
-                            .build()
-            );
-
+            String originalPrompt = context.getOriginalPrompt();
+            String imageListRaw = "";
+            try {
+                // 获取 AI 图片收集服务并调用
+                ImageCollectService service = SpringContextUtil.getBean(ImageCollectService.class);
+                imageListRaw = service.collectImages(originalPrompt);
+            } catch (Exception e) {
+                log.error("图片收集失败: {}", e.getMessage(), e);
+            }
+            // 更新状态
             context.setCurrentStep("图片收集");
-            context.setImageResources(imageResources);
-            log.info("图片收集完成，共收集 {} 张图片", imageResources.size());
+            context.setImageListRaw(imageListRaw);
             return WorkflowContext.toStateMap(context);
         });
     }
