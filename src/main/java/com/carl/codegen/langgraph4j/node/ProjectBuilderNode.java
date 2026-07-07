@@ -5,7 +5,6 @@ import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.langgraph4j.state.WorkflowContext;
 import com.carl.codegen.utils.SpringContextUtil;
-import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.AsyncNodeAction;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
@@ -26,26 +25,20 @@ public class ProjectBuilderNode {
             log.info("执行节点: 项目构建");
 
             String codeOutputDir = context.getCodeOutputDir();
-            CodeGenTypeEnum codeGenType = context.getCodeGenType();
             String buildOutputDir;
 
-            if (codeGenType == CodeGenTypeEnum.VUE3) {
-                // Vue3 项目：npm install + npm run build
-                try {
-                    VueBuilder vueBuilder = SpringContextUtil.getBean(VueBuilder.class);
-                    boolean buildSuccess = vueBuilder.buildProject(codeOutputDir);
-                    if (buildSuccess) {
-                        buildOutputDir = codeOutputDir + File.separator + "dist";
-                        log.info("Vue 项目构建成功，dist 目录: {}", buildOutputDir);
-                    } else {
-                        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败");
-                    }
-                } catch (Exception e) {
-                    log.error("Vue 项目构建异常: {}", e.getMessage(), e);
-                    buildOutputDir = codeOutputDir;
+            // 执行 Vue 项目构建：npm install + npm run build
+            try {
+                VueBuilder vueBuilder = SpringContextUtil.getBean(VueBuilder.class);
+                boolean buildSuccess = vueBuilder.buildProject(codeOutputDir);
+                if (buildSuccess) {
+                    buildOutputDir = codeOutputDir + File.separator + "dist";
+                    log.info("Vue 项目构建成功，dist 目录: {}", buildOutputDir);
+                } else {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败");
                 }
-            } else {
-                // 其他类型：文件已由 AI 工具调用直接保存
+            } catch (Exception e) {
+                log.error("Vue 项目构建异常: {}", e.getMessage(), e);
                 buildOutputDir = codeOutputDir;
             }
 

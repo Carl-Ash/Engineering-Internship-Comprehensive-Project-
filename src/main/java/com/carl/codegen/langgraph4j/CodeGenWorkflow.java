@@ -3,11 +3,14 @@ package com.carl.codegen.langgraph4j;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.langgraph4j.node.CodeGeneratorNode;
+import com.carl.codegen.langgraph4j.node.CodeQualityCheckNode;
 import com.carl.codegen.langgraph4j.node.ImageCollectorNode;
 import com.carl.codegen.langgraph4j.node.ProjectBuilderNode;
 import com.carl.codegen.langgraph4j.node.PromptEnhancerNode;
 import com.carl.codegen.langgraph4j.node.RouterNode;
+import com.carl.codegen.langgraph4j.state.QualityResult;
 import com.carl.codegen.langgraph4j.state.WorkflowContext;
+import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphRepresentation;
@@ -20,6 +23,7 @@ import java.util.Map;
 
 import static org.bsc.langgraph4j.StateGraph.END;
 import static org.bsc.langgraph4j.StateGraph.START;
+import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
 
 /**
  * 代码生成工作流 — 串联图片收集、提示词增强、智能路由、代码生成、项目构建。
@@ -29,25 +33,63 @@ public class CodeGenWorkflow {
 
     public CompiledGraph<MessagesState<String>> createWorkflow() {
         try {
-            // 构建工作流图：图片收集 → 提示词增强 → 智能路由 → 代码生成 → 项目构建
+            // 构建工作流图：图片收集 → 提示词增强 → 智能路由 → 代码生成 → 质检 → 构建/重生成
             return new MessagesStateGraph<String>()
                     .addNode("image_collector", ImageCollectorNode.create())
                     .addNode("prompt_enhancer", PromptEnhancerNode.create())
                     .addNode("router", RouterNode.create())
                     .addNode("code_generator", CodeGeneratorNode.create())
+                    .addNode("code_quality_check", CodeQualityCheckNode.create())
                     .addNode("project_builder", ProjectBuilderNode.create())
 
                     .addEdge(START, "image_collector")
                     .addEdge("image_collector", "prompt_enhancer")
                     .addEdge("prompt_enhancer", "router")
                     .addEdge("router", "code_generator")
-                    .addEdge("code_generator", "project_builder")
+                    .addEdge("code_generator", "code_quality_check")
+                    // 质检条件边：失败重生成，通过则按类型决定是否构建
+                    .addConditionalEdges("code_quality_check",
+                            edge_async(this::routeAfterQualityCheck),
+                            Map.of(
+                                    "build", "project_builder",
+                                    "skip_build", END,
+                                    "fail", "code_generator"
+                            ))
                     .addEdge("project_builder", END)
 
                     .compile();
         } catch (GraphStateException e) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "工作流创建失败");
         }
+    }
+
+    /**
+     * 质检后路由：失败重生成，通过则按类型决定是否构建
+     */
+    private String routeAfterQualityCheck(MessagesState<String> state) {
+        WorkflowContext context = WorkflowContext.fromState(state);
+        QualityResult qualityResult = context.getQualityResult();
+        // 质检失败 → 重新生成代码
+        if (qualityResult == null || !qualityResult.getIsValid()) {
+            log.error("代码质检失败，重新生成代码");
+            return "fail";
+        }
+        // 质检通过 → 按类型决定是否构建
+        log.info("代码质检通过，继续后续流程");
+        return routeBuildOrSkip(state);
+    }
+
+    /**
+     * 条件路由：HTML/MULTI_FILE 跳过构建，VUE3 进入项目构建
+     */
+    private String routeBuildOrSkip(MessagesState<String> state) {
+        WorkflowContext context = WorkflowContext.fromState(state);
+        CodeGenTypeEnum codeGenType = context.getCodeGenType();
+        // HTML/MULTI_FILE 文件已由 AI 直接保存，无需构建
+        if (codeGenType == CodeGenTypeEnum.HTML || codeGenType == CodeGenTypeEnum.MULTI_FILE) {
+            return "skip_build";
+        }
+        return "build";
     }
 
     /**
@@ -73,6 +115,7 @@ public class CodeGenWorkflow {
         for (NodeOutput<MessagesState<String>> nodeResult : workflow.stream(
                 Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext))) {
             log.info("--- 第 {} 步完成 ---", stepIndex);
+            // 提取每次迭代的上下文
             WorkflowContext currentContext = WorkflowContext.fromState(nodeResult.state());
             if (currentContext != null) {
                 finalContext = currentContext;

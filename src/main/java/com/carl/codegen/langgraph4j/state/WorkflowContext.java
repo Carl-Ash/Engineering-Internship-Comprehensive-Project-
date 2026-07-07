@@ -48,6 +48,9 @@ public class WorkflowContext implements Serializable {
     // 项目构建产物目录
     private String buildOutputDir;
 
+    // 质量检查结果
+    private QualityResult qualityResult;
+
     // 错误信息
     private String errorMessage;
 
