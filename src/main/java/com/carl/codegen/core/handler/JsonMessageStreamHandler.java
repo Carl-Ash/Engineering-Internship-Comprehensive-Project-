@@ -1,10 +1,10 @@
 package com.carl.codegen.core.handler;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.carl.codegen.ai.model.message.*;
+import com.carl.codegen.ai.tools.ToolManager;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.model.enums.ChatHistoryMessageTypeEnum;
@@ -27,6 +27,9 @@ public class JsonMessageStreamHandler {
 
     @Resource
     private VueBuilder vueBuilder;
+
+    @Resource
+    private ToolManager toolManager;
 
     public Flux<String> handle(Flux<String> flux,
                                ChatHistoryService chatHistoryService,
@@ -69,24 +72,25 @@ public class JsonMessageStreamHandler {
                 String toolId = toolRequest.getId();
                 if (toolId != null && !seenToolIds.contains(toolId)) {
                     seenToolIds.add(toolId);
-                    return "\n\n[选择工具] 写入文件\n\n";
+                    var tool = toolManager.getTool(toolRequest.getName());
+                    if (tool != null) {
+                        return tool.generateToolRequestResponse();
+                    }
+                    return "\n\n[选择工具] " + toolRequest.getName() + "\n\n";
                 }
                 return "";
             }
             case TOOL_RESULT -> {
                 ToolResultMessage toolResult = JSONUtil.toBean(chunk, ToolResultMessage.class);
-                JSONObject arguments = JSONUtil.parseObj(toolResult.getArguments());
-                String relativeFilePath = arguments.getStr("relativeFilePath");
-                String fileExtension = FileUtil.getSuffix(relativeFilePath);
-                String content = arguments.getStr("content");
-                String result = String.format("""
-                        [工具调用] 写入文件 %s
-                        ```%s
-                        %s
-                        ```
-                        """, relativeFilePath, fileExtension, content);
-                responseCollector.append("\n\n").append(result).append("\n\n");
-                return "\n\n" + result + "\n\n";
+                var tool = toolManager.getTool(toolResult.getName());
+                if (tool != null) {
+                    JSONObject arguments = JSONUtil.parseObj(toolResult.getArguments());
+                    String result = tool.generateToolExecutedResult(arguments);
+                    responseCollector.append("\n\n").append(result).append("\n\n");
+                    return "\n\n" + result + "\n\n";
+                }
+                responseCollector.append("\n\n").append(toolResult.getResult()).append("\n\n");
+                return "\n\n" + toolResult.getResult() + "\n\n";
             }
             default -> {
                 log.error("不支持的消息类型: {}", messageType);

@@ -1,6 +1,9 @@
 package com.carl.codegen.ai;
 
+import com.carl.codegen.ai.tools.BaseTool;
 import com.carl.codegen.ai.tools.FileWriteTool;
+import com.carl.codegen.ai.tools.ToolManager;
+import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
@@ -19,7 +22,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Arrays;
 
 @Slf4j
 @Configuration
@@ -40,6 +45,9 @@ public class AiCodeGenServiceFactory {
     @Resource
     private ChatHistoryService chatHistoryService;
 
+    @Resource
+    private ToolManager toolManager;
+
     /**
      * AI 服务实例缓存
      * 缓存策略：
@@ -59,21 +67,40 @@ public class AiCodeGenServiceFactory {
      * 根据 appId 获取服务（带缓存）
      */
     public AiCodeGenService getAiCodeGenService(long appId) {
-        return getAiCodeGenService(appId, CodeGenTypeEnum.HTML);
+        return getAiCodeGenService(appId, CodeGenTypeEnum.HTML, false);
     }
 
     /**
      * 根据 appId 和 codeGenTypeEnum 获取服务（带缓存）
      */
     public AiCodeGenService getAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum) {
-        String cacheKey = createCacheKey(appId, codeGenTypeEnum);
-        return serviceCache.get(cacheKey, key -> createAiCodeGenService(appId, codeGenTypeEnum));
+        return getAiCodeGenService(appId, codeGenTypeEnum, false);
+    }
+
+    /**
+     * 根据 appId、codeGenTypeEnum 和修改模式获取服务（带缓存）
+     */
+    public AiCodeGenService getAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum, boolean isModify) {
+        String cacheKey = createCacheKey(appId, codeGenTypeEnum, isModify);
+        return serviceCache.get(cacheKey, key -> createAiCodeGenService(appId, codeGenTypeEnum, isModify));
+    }
+
+    /**
+     * 检测是否为修改模式（项目目录已有文件）
+     */
+    public boolean isModifyMode(Long appId) {
+        java.io.File projectDir = Paths.get(AppConstant.CODE_OUTPUT_ROOT_DIR, "vue3_" + appId).toFile();
+        if (!projectDir.exists() || !projectDir.isDirectory()) {
+            return false;
+        }
+        String[] files = projectDir.list();
+        return files != null && files.length > 0;
     }
 
     /**
      * 创建新的 AI 服务实例
      */
-    private AiCodeGenService createAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum) {
+    private AiCodeGenService createAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum, boolean isModify) {
         // 创建新的 AI 服务实例
         log.info("为 appId: {} 创建新的 AI 服务实例", appId);
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory
@@ -91,14 +118,22 @@ public class AiCodeGenServiceFactory {
                     .chatMemory(chatMemory)
                     .tools(new FileWriteTool(codeGenTypeEnum.getValue()))
                     .build();
-            case VUE3 -> AiServices.builder(AiCodeGenService.class)
-                    .streamingChatModel(reasoningStreamingChatModel)
-                    .chatMemoryProvider(memoryId -> chatMemory)
-                    .tools(new FileWriteTool(codeGenTypeEnum.getValue()))
-                    .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
-                            toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
-                    ))
-                    .build();
+            case VUE3 -> {
+                BaseTool[] tools = toolManager.getAllTools();
+                if (isModify) {
+                    tools = Arrays.stream(tools)
+                            .filter(t -> !(t instanceof FileWriteTool))
+                            .toArray(BaseTool[]::new);
+                }
+                yield AiServices.builder(AiCodeGenService.class)
+                        .streamingChatModel(reasoningStreamingChatModel)
+                        .chatMemoryProvider(memoryId -> chatMemory)
+                        .tools(tools)
+                        .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
+                                toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
+                        ))
+                        .build();
+            }
 
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR,
                     "不支持的代码生成类型: " + codeGenTypeEnum.getValue());
@@ -113,7 +148,7 @@ public class AiCodeGenServiceFactory {
         return getAiCodeGenService(0L);
     }
 
-    private String createCacheKey(long appId, CodeGenTypeEnum codeGenTypeEnum) {
-        return appId + "_" + codeGenTypeEnum.getValue();
+    private String createCacheKey(long appId, CodeGenTypeEnum codeGenTypeEnum, boolean isModify) {
+        return appId + "_" + codeGenTypeEnum.getValue() + (isModify ? "_modify" : "_create");
     }
 }

@@ -104,7 +104,8 @@ public class AiCodeGenFacade {
                 yield processCodeStream(codeFlux, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             case VUE3 -> {
-                TokenStream tokenStream = aiCodeGenServiceFactory.getAiCodeGenService(appId, type).generateVue3CodeStreaming(appId, prompt);
+                boolean isModify = aiCodeGenServiceFactory.isModifyMode(appId);
+                TokenStream tokenStream = aiCodeGenServiceFactory.getAiCodeGenService(appId, type, isModify).generateVue3CodeStreaming(appId, prompt);
                 yield processTokenStream(tokenStream);
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型" + type.getValue());

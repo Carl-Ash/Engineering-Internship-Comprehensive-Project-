@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.carl.codegen.annotation.AuthCheck;
+import lombok.extern.slf4j.Slf4j;
 import com.carl.codegen.common.BaseResponse;
 import com.carl.codegen.common.DeleteRequest;
 import com.carl.codegen.common.ResultUtils;
@@ -13,6 +14,7 @@ import com.carl.codegen.core.AiCodeGenFacade;
 import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.exception.ThrowUtils;
+import com.carl.codegen.manager.CosManager;
 import com.carl.codegen.model.dto.app.*;
 import com.carl.codegen.model.entity.User;
 import com.carl.codegen.model.vo.AppVO;
@@ -26,16 +28,24 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import com.carl.codegen.model.entity.App;
 import com.carl.codegen.service.AppService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/app")
 public class AppController {
@@ -50,6 +60,9 @@ public class AppController {
     private AiCodeGenFacade aiCodeGenFacade;
     @Resource
     private ProjectDownloadService projectDownloadService;
+
+    @Resource
+    private CosManager cosManager;
 
     // ==================== AI 代码生成 ====================
 
@@ -83,6 +96,44 @@ public class AppController {
         }
         aiCodeGenFacade.cancelGeneration(appId);
         return ResultUtils.success("已发送停止信号");
+    }
+
+    private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/webp"
+    );
+    private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+
+    /** 上传图片到 COS */
+    @PostMapping("/upload/image")
+    public BaseResponse<String> uploadImage(@RequestParam("file") MultipartFile file,
+                                            HttpServletRequest request) {
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_ERROR, "文件不能为空");
+        String contentType = file.getContentType();
+        ThrowUtils.throwIf(contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType),
+                ErrorCode.PARAMS_ERROR, "仅支持 jpg/png/gif/webp 格式");
+        ThrowUtils.throwIf(file.getSize() > MAX_IMAGE_SIZE,
+                ErrorCode.PARAMS_ERROR, "文件大小不能超过 5MB");
+        User loginUser = userService.getLoginUser(request);
+        try {
+            String originalName = file.getOriginalFilename();
+            String ext = "";
+            if (originalName != null && originalName.contains(".")) {
+                ext = originalName.substring(originalName.lastIndexOf('.'));
+            }
+            LocalDate today = LocalDate.now();
+            String key = String.format("/uploads/%d/%02d/%02d/%s%s",
+                    today.getYear(), today.getMonthValue(), today.getDayOfMonth(),
+                    UUID.randomUUID().toString().substring(0, 8), ext);
+            Path tmpPath = Path.of(System.getProperty("java.io.tmpdir"), "upload_" + UUID.randomUUID() + ext);
+            Files.copy(file.getInputStream(), tmpPath);
+            String url = cosManager.uploadFile(key, tmpPath.toFile());
+            try { Files.delete(tmpPath); } catch (IOException ignored) {}
+            ThrowUtils.throwIf(url == null, ErrorCode.SYSTEM_ERROR, "图片上传失败");
+            log.info("用户 {} 上传图片成功: {}", loginUser.getId(), url);
+            return ResultUtils.success(url);
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片上传失败: " + e.getMessage());
+        }
     }
 
     // ==================== 应用 CRUD ====================

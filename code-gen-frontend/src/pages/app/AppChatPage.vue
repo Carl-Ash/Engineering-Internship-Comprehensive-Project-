@@ -104,6 +104,24 @@
               class="chat-input"
             />
             <div class="input-footer">
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="onFileSelected"
+              />
+              <a-button
+                v-if="isOwner"
+                size="small"
+                type="text"
+                @click="handleImageUpload"
+                :loading="uploadingImage"
+                :disabled="isGenerating"
+                title="上传图片"
+              >
+                <template #icon><PictureOutlined /></template>
+              </a-button>
               <span class="char-count">{{ userInput.length }}/2000</span>
               <a-button
                 type="primary"
@@ -146,6 +164,36 @@
             </a-button>
           </div>
         </div>
+        <!-- 代码文件 Tab 栏 -->
+        <div v-if="codeFiles.length > 0" class="code-tabs-bar">
+          <div class="code-tabs-label">
+            <CodeOutlined />
+            <span>文件</span>
+          </div>
+          <div class="code-tabs-scroll">
+            <a-tag
+              v-for="file in codeFiles"
+              :key="file.path"
+              :color="activeCodeFile === file.path ? 'blue' : 'default'"
+              class="code-tab"
+              @click="viewCodeFile(file.path)"
+            >
+              {{ file.path }}
+            </a-tag>
+          </div>
+        </div>
+
+        <!-- 代码查看 -->
+        <div v-if="viewingCode" class="code-view-overlay" @click.self="viewingCode = false">
+          <div class="code-view-panel">
+            <div class="code-view-header">
+              <span>{{ activeCodeFile }}</span>
+              <a-button type="text" size="small" @click="viewingCode = false">✕</a-button>
+            </div>
+            <MarkdownRenderer :content="'```' + (codeFiles.find(f => f.path === activeCodeFile)?.language || '') + '\n' + viewingCodeContent + '\n```'" />
+          </div>
+        </div>
+
         <div class="preview-content">
           <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
             <div class="placeholder-icon">🌐</div>
@@ -220,8 +268,10 @@ import {
   CheckCircleOutlined,
   DownloadOutlined,
   EditOutlined,
+  PictureOutlined,
+  CodeOutlined,
 } from '@ant-design/icons-vue'
-import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
+import { VisualEditor, type ElementInfo, type TextEditInfo } from '@/utils/visualEditor'
 
 const route = useRoute()
 const router = useRouter()
@@ -275,7 +325,27 @@ const visualEditor = new VisualEditor({
   onElementSelected: (elementInfo: ElementInfo) => {
     selectedElementInfo.value = elementInfo
   },
+  onTextEdited: (textEditInfo: TextEditInfo) => {
+    const editMessage = `修改元素 ${textEditInfo.selector} 的文本内容：将 "${textEditInfo.oldText}" 改为 "${textEditInfo.newText}"`
+    userInput.value = editMessage
+    sendMessage()
+  },
 })
+
+// 代码文件Tab栏
+interface CodeFile {
+  path: string
+  language: string
+  code: string
+}
+const codeFiles = ref<CodeFile[]>([])
+const activeCodeFile = ref('')
+const viewingCode = ref(false)
+const viewingCodeContent = ref('')
+
+// 图片上传
+const uploadingImage = ref(false)
+const fileInputRef = ref<HTMLInputElement>()
 
 const genStatusTag = computed(() => {
   switch (appInfo.value?.genStatus) {
@@ -523,6 +593,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
             msgItem.content = fullContent
             msgItem.loading = false
           }
+          parseCodeFiles(fullContent)
           resetTimeout()
           scrollToBottom()
         }
@@ -589,6 +660,60 @@ const scrollToBottom = (force = false) => {
   const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
   if (force || isNearBottom) {
     el.scrollTop = el.scrollHeight
+  }
+}
+
+const handleImageUpload = async () => {
+  fileInputRef.value?.click()
+}
+
+const onFileSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadingImage.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const baseURL = request.defaults.baseURL || API_BASE_URL
+    const res = await fetch(`${baseURL}/app/upload/image`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+    const json = await res.json()
+    if (json.code === 0 && json.data) {
+      userInput.value = userInput.value + ' ' + json.data
+      message.success('图片上传成功')
+    } else {
+      message.error(json.message || '上传失败')
+    }
+  } catch {
+    message.error('图片上传失败')
+  } finally {
+    uploadingImage.value = false
+    input.value = ''
+  }
+}
+
+const parseCodeFiles = (content: string) => {
+  const regex = /\[工具调用\] 写入文件 (.+?)\n```(\w+)\n([\s\S]*?)```/g
+  const files: CodeFile[] = []
+  let match
+  while ((match = regex.exec(content)) !== null) {
+    files.push({ path: match[1].trim(), language: match[2], code: match[3] })
+  }
+  if (files.length > 0) {
+    codeFiles.value = files
+  }
+}
+
+const viewCodeFile = (path: string) => {
+  const file = codeFiles.value.find((f) => f.path === path)
+  if (file) {
+    activeCodeFile.value = path
+    viewingCode.value = true
+    viewingCodeContent.value = file.code
   }
 }
 
@@ -1353,5 +1478,88 @@ onUnmounted(() => {
   .preview-header {
     padding: 8px 12px;
   }
+}
+
+/* 代码文件 Tab 栏 */
+.code-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.code-tabs-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.code-tabs-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.code-tabs-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+
+.code-tab {
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.code-tab:hover {
+  transform: translateY(-1px);
+}
+
+/* 代码查看弹窗 */
+.code-view-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.code-view-panel {
+  background: var(--bg-card);
+  border-radius: 12px;
+  width: 90%;
+  max-height: 80%;
+  overflow: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.code-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 14px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-header);
+  z-index: 1;
+}
+
+.code-view-panel :deep(pre) {
+  margin: 0;
+  border-radius: 0;
+  padding: 16px;
 }
 </style>

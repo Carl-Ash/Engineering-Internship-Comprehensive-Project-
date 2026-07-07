@@ -18,9 +18,16 @@ export interface ElementInfo {
   }
 }
 
+export interface TextEditInfo {
+  selector: string
+  oldText: string
+  newText: string
+}
+
 export interface VisualEditorOptions {
   onElementSelected?: (elementInfo: ElementInfo) => void
   onElementHover?: (elementInfo: ElementInfo) => void
+  onTextEdited?: (textEditInfo: TextEditInfo) => void
 }
 
 export class VisualEditor {
@@ -100,6 +107,15 @@ export class VisualEditor {
       case 'ELEMENT_HOVER':
         if (this.options.onElementHover && data?.elementInfo) {
           this.options.onElementHover(data.elementInfo)
+        }
+        break
+      case 'TEXT_EDITED':
+        if (this.options.onTextEdited && data) {
+          this.options.onTextEdited({
+            selector: data.selector,
+            oldText: data.oldText,
+            newText: data.newText,
+          })
         }
         break
     }
@@ -270,6 +286,8 @@ export class VisualEditor {
       }
     }, true)
 
+    var TEXT_EDIT_TAGS = ['P', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'LI', 'TD', 'TH', 'BUTTON', 'LABEL', 'DT', 'DD', 'FIGCAPTION', 'BLOCKQUOTE', 'CITE', 'EM', 'STRONG', 'SMALL', 'CODE', 'PRE']
+
     document.body.addEventListener('click', function(event) {
       if (!isEditMode) return
       event.preventDefault()
@@ -285,6 +303,35 @@ export class VisualEditor {
       try {
         window.parent.postMessage({ type: 'ELEMENT_SELECTED', data: { elementInfo: elementInfo } }, '*')
       } catch(e) {}
+
+      // contentEditable for text elements
+      if (TEXT_EDIT_TAGS.indexOf(target.tagName) !== -1 && !target.hasAttribute('contenteditable')) {
+        var oldText = (target.textContent || '').trim()
+        target.setAttribute('contenteditable', 'true')
+        target.focus()
+
+        // Select all text
+        var range = document.createRange()
+        range.selectNodeContents(target)
+        var sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+
+        var onBlur = function() {
+          target.removeAttribute('contenteditable')
+          target.removeEventListener('blur', onBlur)
+          var newText = (target.textContent || '').trim()
+          if (newText !== oldText) {
+            try {
+              window.parent.postMessage({
+                type: 'TEXT_EDITED',
+                data: { selector: elementInfo.selector, oldText: oldText, newText: newText }
+              }, '*')
+            } catch(e) {}
+          }
+        }
+        target.addEventListener('blur', onBlur)
+      }
     }, true)
 
     eventListenersAdded = true

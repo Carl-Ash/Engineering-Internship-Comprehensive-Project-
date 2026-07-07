@@ -81,7 +81,13 @@
       "Bash(docker port *)",
       "Bash(taskkill //PID 9072 //F)",
       "Bash(redis-cli -p 6380 PING)",
-      "Bash(redis-cli *)"
+      "Bash(redis-cli *)",
+      "Read(//c/Users/16646/.jdks/**)",
+      "Read(//c/Program Files/Java/**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/16646/.m2/**)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\" mvn compile -q)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Java\\\\jdk-21\" mvn -f \"C:\\\\Users\\\\16646\\\\Desktop\\\\实训\\\\code-gen\\\\pom.xml\" compile -q)"
     ]
   }
 }
