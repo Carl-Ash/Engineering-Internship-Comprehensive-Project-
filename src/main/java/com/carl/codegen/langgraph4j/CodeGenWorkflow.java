@@ -31,6 +31,11 @@ import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
 @Slf4j
 public class CodeGenWorkflow {
 
+    /**
+     * 质检重试最大次数，超过后跳过修复直接继续
+     */
+    private static final int MAX_QUALITY_RETRY = 3;
+
     public CompiledGraph<MessagesState<String>> createWorkflow() {
         try {
             // 构建工作流图：图片收集 → 提示词增强 → 智能路由 → 代码生成 → 质检 → 构建/重生成
@@ -69,9 +74,15 @@ public class CodeGenWorkflow {
     private String routeAfterQualityCheck(MessagesState<String> state) {
         WorkflowContext context = WorkflowContext.fromState(state);
         QualityResult qualityResult = context.getQualityResult();
-        // 质检失败 → 重新生成代码
+        // 质检失败 → 重新生成代码（超过重试上限则跳过）
         if (qualityResult == null || !qualityResult.getIsValid()) {
-            log.error("代码质检失败，重新生成代码");
+            int retryCount = context.getQualityCheckRetryCount() != null
+                    ? context.getQualityCheckRetryCount() : 0;
+            if (retryCount >= MAX_QUALITY_RETRY) {
+                log.warn("已达最大重试次数({})，跳过质检修复继续后续流程", MAX_QUALITY_RETRY);
+                return routeBuildOrSkip(state);
+            }
+            log.error("代码质检失败，重新生成代码（第 {} 次重试）", retryCount);
             return "fail";
         }
         // 质检通过 → 按类型决定是否构建

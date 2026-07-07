@@ -60,9 +60,14 @@ public class CodeQualityCheckNode {
                         .isValid(true)
                         .build();
             }
-            // 3. 更新状态
+            // 3. 更新状态，递增重试计数
             context.setCurrentStep("代码质量检查");
             context.setQualityResult(qualityResult);
+            context.setQualityCheckRetryCount(
+                    context.getQualityCheckRetryCount() != null
+                            ? context.getQualityCheckRetryCount() + 1
+                            : 1
+            );
             return WorkflowContext.toStateMap(context);
         });
     }
