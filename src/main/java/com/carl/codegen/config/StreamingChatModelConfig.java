@@ -6,37 +6,41 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Scope;
 
 /**
- * 推理模型配置（深度思考），用于需要复杂推理的代码生成场景。
+ * 通用流式聊天模型多例配置 — 每次获取创建新实例，解决并发阻塞问题。
  */
 @Configuration
-@ConfigurationProperties(prefix = "langchain4j.open-ai.chat-model")
+@ConfigurationProperties(prefix = "langchain4j.open-ai.streaming-chat-model")
 @Data
-public class ReasoningModelConfig {
+public class StreamingChatModelConfig {
 
     private String baseUrl;
 
     private String apiKey;
 
-    /**
-     * 推理流式模型，当前用于 Vue 多文件项目生成。
-     */
+    private String modelName;
+
+    private Integer maxTokens;
+
+    private Double temperature;
+
+    private boolean logRequests;
+
+    private boolean logResponses;
+
     @Bean
-    public StreamingChatModel reasoningStreamingChatModel() {
-        // 为了测试方便临时修改
-        final String modelName = "deepseek-chat";
-        final int maxTokens = 8192;
-        // 生产环境使用：
-        // final String modelName = "deepseek-reasoner";
-        // final int maxTokens = 32768;
+    @Scope("prototype")
+    public StreamingChatModel generalStreamingChatModel() {
         return OpenAiStreamingChatModel.builder()
                 .apiKey(apiKey)
                 .baseUrl(baseUrl)
                 .modelName(modelName)
                 .maxTokens(maxTokens)
-                .logRequests(true)
-                .logResponses(true)
+                .temperature(temperature)
+                .logRequests(logRequests)
+                .logResponses(logResponses)
                 .build();
     }
 }

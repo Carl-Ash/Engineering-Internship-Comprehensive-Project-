@@ -27,7 +27,6 @@ import static com.carl.codegen.constant.UserConstant.USER_LOGIN_STATE;
 /**
  * 用户 服务层实现。
  *
- * @author Carl
  */
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User>  implements UserService{

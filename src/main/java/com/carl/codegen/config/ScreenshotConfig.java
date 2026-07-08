@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 /**
  * 截图定时任务配置
  *
- * @author Carl
  */
 @Configuration
 @EnableScheduling

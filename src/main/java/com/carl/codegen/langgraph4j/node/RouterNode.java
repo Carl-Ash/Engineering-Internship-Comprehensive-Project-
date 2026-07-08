@@ -1,6 +1,7 @@
 package com.carl.codegen.langgraph4j.node;
 
 import com.carl.codegen.ai.AiCodeGenRouter;
+import com.carl.codegen.ai.AiCodeGenRouterFactory;
 import com.carl.codegen.langgraph4j.state.WorkflowContext;
 import com.carl.codegen.utils.SpringContextUtil;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
@@ -23,8 +24,9 @@ public class RouterNode {
 
             CodeGenTypeEnum codeGenType;
             try {
-                // 调用 AI 路由选择生成类型
-                AiCodeGenRouter router = SpringContextUtil.getBean(AiCodeGenRouter.class);
+                // 调用 AI 路由选择生成类型（多例模式）
+                AiCodeGenRouterFactory factory = SpringContextUtil.getBean(AiCodeGenRouterFactory.class);
+                AiCodeGenRouter router = factory.createAiCodeGenRouter();
                 codeGenType = router.routeCodeGenType(context.getOriginalPrompt());
                 log.info("智能路由完成，类型: {} ({})", codeGenType.getValue(), codeGenType.getText());
             } catch (Exception e) {

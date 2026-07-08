@@ -15,7 +15,6 @@ import lombok.*;
 /**
  * 对话历史 实体类。
  *
- * @author Carl
  */
 @Data
 @Builder

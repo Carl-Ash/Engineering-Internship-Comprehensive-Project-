@@ -14,7 +14,6 @@ import java.util.List;
 /**
  * 应用 服务层。
  *
- * @author Carl
  */
 public interface AppService extends IService<App> {
 

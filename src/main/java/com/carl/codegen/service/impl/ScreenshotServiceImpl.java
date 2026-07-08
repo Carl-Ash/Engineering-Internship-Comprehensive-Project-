@@ -19,7 +19,6 @@ import java.util.UUID;
 /**
  * 网页截图服务实现
  *
- * @author Carl
  */
 @Service
 @Slf4j

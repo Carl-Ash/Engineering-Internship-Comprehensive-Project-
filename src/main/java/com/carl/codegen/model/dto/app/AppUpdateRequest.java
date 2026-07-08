@@ -7,7 +7,6 @@ import java.io.Serializable;
 /**
  * 应用 更新请求。
  *
- * @author Carl
  */
 @Data
 public class AppUpdateRequest implements Serializable {

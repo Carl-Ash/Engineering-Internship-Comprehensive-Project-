@@ -6,7 +6,6 @@ import com.carl.codegen.model.entity.User;
 /**
  * 用户 映射层。
  *
- * @author Carl
  */
 public interface UserMapper extends BaseMapper<User> {
 

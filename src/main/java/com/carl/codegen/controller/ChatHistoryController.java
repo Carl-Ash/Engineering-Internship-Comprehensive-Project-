@@ -30,7 +30,6 @@ import java.time.LocalDateTime;
 /**
  * 对话历史 控制层。
  *
- * @author Carl
  */
 @RestController
 @RequestMapping("/chatHistory")

@@ -19,7 +19,6 @@ import java.util.Set;
 /**
  * 项目下载服务实现
  *
- * @author Carl
  */
 @Service
 @Slf4j

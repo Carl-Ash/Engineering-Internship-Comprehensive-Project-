@@ -3,7 +3,6 @@ package com.carl.codegen.service;
 /**
  * 网页截图服务
  *
- * @author Carl
  */
 public interface ScreenshotService {
 

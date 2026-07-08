@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletResponse;
 /**
  * 项目下载服务
  *
- * @author Carl
  */
 public interface ProjectDownloadService {
 

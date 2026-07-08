@@ -10,6 +10,7 @@ import com.carl.codegen.langgraph4j.node.PromptEnhancerNode;
 import com.carl.codegen.langgraph4j.node.RouterNode;
 import com.carl.codegen.langgraph4j.state.QualityResult;
 import com.carl.codegen.langgraph4j.state.WorkflowContext;
+import cn.hutool.json.JSONUtil;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.CompiledGraph;
@@ -18,6 +19,8 @@ import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.NodeOutput;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.bsc.langgraph4j.prebuilt.MessagesStateGraph;
+
+import reactor.core.publisher.Flux;
 
 import java.util.Map;
 
@@ -136,5 +139,69 @@ public class CodeGenWorkflow {
         }
         log.info("代码生成工作流执行完成");
         return finalContext;
+    }
+
+    /**
+     * 执行工作流，通过 Flux 流式输出 SSE 事件
+     */
+    public Flux<String> executeWorkflowWithFlux(String originalPrompt) {
+        return Flux.create(sink -> {
+            Thread.startVirtualThread(() -> {
+                try {
+                    CompiledGraph<MessagesState<String>> workflow = createWorkflow();
+                    WorkflowContext initialContext = WorkflowContext.builder()
+                            .originalPrompt(originalPrompt)
+                            .currentStep("初始化")
+                            .build();
+
+                    sink.next(formatSseEvent("workflow_start", Map.of(
+                            "message", "开始执行代码生成工作流",
+                            "originalPrompt", originalPrompt
+                    )));
+
+                    GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
+                    log.info("工作流图:\n{}", graph.content());
+
+                    int stepIndex = 1;
+                    for (NodeOutput<MessagesState<String>> nodeResult : workflow.stream(
+                            Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext))) {
+                        log.info("--- 第 {} 步完成 ---", stepIndex);
+                        WorkflowContext currentContext = WorkflowContext.fromState(nodeResult.state());
+                        if (currentContext != null) {
+                            sink.next(formatSseEvent("step_completed", Map.of(
+                                    "stepNumber", stepIndex,
+                                    "currentStep", currentContext.getCurrentStep()
+                            )));
+                        }
+                        stepIndex++;
+                    }
+
+                    sink.next(formatSseEvent("workflow_completed", Map.of(
+                            "message", "代码生成工作流执行完成"
+                    )));
+                    log.info("代码生成工作流执行完成");
+                    sink.complete();
+                } catch (Exception e) {
+                    log.error("工作流执行失败: {}", e.getMessage(), e);
+                    sink.next(formatSseEvent("workflow_error", Map.of(
+                            "error", e.getMessage()
+                    )));
+                    sink.error(e);
+                }
+            });
+        });
+    }
+
+    /**
+     * 格式化 SSE 事件
+     */
+    private String formatSseEvent(String eventType, Object data) {
+        try {
+            String jsonData = JSONUtil.toJsonStr(data);
+            return "event: " + eventType + "\ndata: " + jsonData + "\n\n";
+        } catch (Exception e) {
+            log.error("SSE 格式化失败: {}", e.getMessage(), e);
+            return "event: error\ndata: {\"error\":\"格式化失败\"}\n\n";
+        }
     }
 }

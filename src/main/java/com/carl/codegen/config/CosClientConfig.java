@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Configuration;
 /**
  * 腾讯云COS对象存储配置
  *
- * @author Carl
  */
 @Configuration
 @ConfigurationProperties(prefix = "cos.client")

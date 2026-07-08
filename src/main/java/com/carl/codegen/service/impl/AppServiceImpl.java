@@ -5,7 +5,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
-import com.carl.codegen.ai.AiCodeGenRouter;
+import com.carl.codegen.ai.AiCodeGenRouterFactory;
 import com.carl.codegen.config.CosClientConfig;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.AiCodeGenFacade;
@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 /**
  * 应用 服务层实现。
  *
- * @author Carl
  */
 @Service
 @Slf4j
@@ -70,7 +69,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     @Resource
     private CosClientConfig cosClientConfig;
     @Resource
-    private AiCodeGenRouter aiCodeGenRouter;
+    private AiCodeGenRouterFactory aiCodeGenRouterFactory;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -78,8 +77,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
         App app = new App();
         app.setInitPrompt(initPrompt);
-        // 使用 AI 智能选择代码生成类型
-        CodeGenTypeEnum selectedCodeGenType = aiCodeGenRouter.routeCodeGenType(initPrompt);
+        // 使用 AI 智能选择代码生成类型（多例模式）
+        CodeGenTypeEnum selectedCodeGenType = aiCodeGenRouterFactory.createAiCodeGenRouter().routeCodeGenType(initPrompt);
         app.setCodeGenType(selectedCodeGenType.getValue());
         // AI 生成应用名称：取 prompt 前 30 字
         String autoName = initPrompt.length() > 30 ? initPrompt.substring(0, 30) : initPrompt;

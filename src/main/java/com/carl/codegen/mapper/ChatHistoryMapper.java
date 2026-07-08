@@ -6,7 +6,6 @@ import com.carl.codegen.model.entity.ChatHistory;
 /**
  * 对话历史 映射层。
  *
- * @author Carl
  */
 public interface ChatHistoryMapper extends BaseMapper<ChatHistory> {
 

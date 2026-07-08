@@ -9,7 +9,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 /**
  * AI代码生成类型智能路由服务测试
  *
- * @author Carl
  */
 @Slf4j
 @SpringBootTest

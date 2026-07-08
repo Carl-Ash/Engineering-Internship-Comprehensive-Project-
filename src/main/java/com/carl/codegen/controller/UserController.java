@@ -27,7 +27,6 @@ import java.util.List;
 /**
  * 用户 控制层。
  *
- * @author Carl
  */
 @RestController
 @RequestMapping("/user")

@@ -8,9 +8,9 @@ import com.carl.codegen.exception.BusinessException;
 import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
 import com.carl.codegen.service.ChatHistoryService;
+import com.carl.codegen.utils.SpringContextUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -30,14 +30,8 @@ import java.util.Arrays;
 @Configuration
 public class AiCodeGenServiceFactory {
 
-    @Resource
+    @Resource(name = "openAiChatModel")
     private ChatModel chatModel;
-
-    @Resource
-    private StreamingChatModel openAiStreamingChatModel;
-
-    @Resource
-    private StreamingChatModel reasoningStreamingChatModel;
 
     @Resource
     private RedisChatMemoryStore redisChatMemoryStore;
@@ -98,10 +92,9 @@ public class AiCodeGenServiceFactory {
     }
 
     /**
-     * 创建新的 AI 服务实例
+     * 创建新的 AI 服务实例 — 每次调用获取独立的原型 ChatModel/StreamingChatModel，解决并发阻塞问题
      */
     private AiCodeGenService createAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum, boolean isModify) {
-        // 创建新的 AI 服务实例
         log.info("为 appId: {} 创建新的 AI 服务实例", appId);
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory
                 .builder()
@@ -109,15 +102,18 @@ public class AiCodeGenServiceFactory {
                 .chatMemoryStore(redisChatMemoryStore)
                 .maxMessages(20)
                 .build();
-        // 从数据库加载历史对话到记忆中
         chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 20);
         return switch (codeGenTypeEnum) {
-            case HTML, MULTI_FILE -> AiServices.builder(AiCodeGenService.class)
-                    .chatModel(chatModel)
-                    .streamingChatModel(openAiStreamingChatModel)
-                    .chatMemory(chatMemory)
-                    .tools(new FileWriteTool(codeGenTypeEnum.getValue()))
-                    .build();
+            case HTML, MULTI_FILE -> {
+                StreamingChatModel generalStreamingChatModel = SpringContextUtil.getBean(
+                        "generalStreamingChatModel", StreamingChatModel.class);
+                yield AiServices.builder(AiCodeGenService.class)
+                        .chatModel(chatModel)
+                        .streamingChatModel(generalStreamingChatModel)
+                        .chatMemory(chatMemory)
+                        .tools(new FileWriteTool(codeGenTypeEnum.getValue()))
+                        .build();
+            }
             case VUE3 -> {
                 BaseTool[] tools = toolManager.getAllTools();
                 if (isModify) {
@@ -125,10 +121,12 @@ public class AiCodeGenServiceFactory {
                             .filter(t -> !(t instanceof FileWriteTool))
                             .toArray(BaseTool[]::new);
                 }
+                StreamingChatModel reasoningStreamingChatModel = SpringContextUtil.getBean(
+                        "reasoningStreamingChatModel", StreamingChatModel.class);
                 yield AiServices.builder(AiCodeGenService.class)
                         .streamingChatModel(reasoningStreamingChatModel)
                         .chatMemoryProvider(memoryId -> chatMemory)
-                        .tools(tools)
+                        .tools((Object[]) tools)
                         .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
                                 toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
                         ))
