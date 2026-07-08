@@ -5,8 +5,6 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.carl.codegen.ai.model.message.*;
 import com.carl.codegen.ai.tools.ToolManager;
-import com.carl.codegen.constant.AppConstant;
-import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.model.enums.ChatHistoryMessageTypeEnum;
 import com.carl.codegen.model.entity.User;
 import com.carl.codegen.service.ChatHistoryService;
@@ -26,9 +24,6 @@ import java.util.Set;
 public class JsonMessageStreamHandler {
 
     @Resource
-    private VueBuilder vueBuilder;
-
-    @Resource
     private ToolManager toolManager;
 
     public Flux<String> handle(Flux<String> flux,
@@ -42,8 +37,6 @@ public class JsonMessageStreamHandler {
                 .doOnComplete(() -> {
                     String aiResponse = responseCollector.toString();
                     chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-                    String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/vue3_" + appId;
-                    vueBuilder.buildProjectAsync(projectPath);
                 })
                 .doOnError(error -> {
                     String errorMessage = "AI回复失败: " + error.getMessage();

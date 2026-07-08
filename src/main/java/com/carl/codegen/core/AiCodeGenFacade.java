@@ -9,6 +9,7 @@ import com.carl.codegen.ai.model.message.ThinkingMessage;
 import com.carl.codegen.ai.model.message.ToolRequestMessage;
 import com.carl.codegen.ai.model.message.ToolResultMessage;
 import com.carl.codegen.constant.AppConstant;
+import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.core.parser.CodeParserExe;
 import com.carl.codegen.core.saver.CodeSaverExe;
 import com.carl.codegen.exception.BusinessException;
@@ -43,6 +44,9 @@ public class AiCodeGenFacade {
 
     @Resource
     private AppMapper appMapper;
+
+    @Resource
+    private VueBuilder vueBuilder;
 
     /** 取消标记：key=appId，value=true表示已取消 */
     private final Map<Long, AtomicBoolean> cancelMap = new ConcurrentHashMap<>();
@@ -106,13 +110,13 @@ public class AiCodeGenFacade {
             case VUE3 -> {
                 boolean isModify = aiCodeGenServiceFactory.isModifyMode(appId);
                 TokenStream tokenStream = aiCodeGenServiceFactory.getAiCodeGenService(appId, type, isModify).generateVue3CodeStreaming(appId, prompt);
-                yield processTokenStream(tokenStream);
+                yield processTokenStream(tokenStream, appId);
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型" + type.getValue());
         };
     }
 
-    private Flux<String> processTokenStream(TokenStream tokenStream) {
+    private Flux<String> processTokenStream(TokenStream tokenStream, Long appId) {
         return Flux.create(sink -> {
             tokenStream.onPartialResponse((String partialResponse) -> {
                         AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
@@ -131,6 +135,10 @@ public class AiCodeGenFacade {
                         sink.next(JSONUtil.toJsonStr(toolResultMessage));
                     })
                     .onCompleteResponse((ChatResponse response) -> {
+                        // 同步构建 Vue 项目，构建完成后再通知前端流结束。
+                        // 这样用户看到"生成完成"时 dist 目录已就绪，预览不会看到旧内容或 404。
+                        String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue3_" + appId;
+                        vueBuilder.buildProject(projectPath);
                         sink.complete();
                     })
                     .onError((Throwable error) -> {

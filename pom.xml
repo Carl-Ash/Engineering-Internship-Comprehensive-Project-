@@ -43,6 +43,12 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
+        <!-- Redisson 分布式限流 -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.50.0</version>
+        </dependency>
         <!-- Spring Session + Redis -->
         <dependency>
             <groupId>org.springframework.session</groupId>

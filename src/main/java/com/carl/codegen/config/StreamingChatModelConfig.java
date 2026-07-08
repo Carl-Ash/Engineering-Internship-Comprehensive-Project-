@@ -30,6 +30,8 @@ public class StreamingChatModelConfig {
 
     private boolean logResponses;
 
+    private Integer maxRetries;
+
     @Bean
     @Scope("prototype")
     public StreamingChatModel generalStreamingChatModel() {
@@ -41,6 +43,7 @@ public class StreamingChatModelConfig {
                 .temperature(temperature)
                 .logRequests(logRequests)
                 .logResponses(logResponses)
+                .maxRetries(maxRetries != null ? maxRetries : 2)
                 .build();
     }
 }

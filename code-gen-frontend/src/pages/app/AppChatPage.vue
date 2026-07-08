@@ -613,6 +613,28 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       }, 1000)
     })
 
+    // 处理后端推送的业务错误（限流、权限等），区别于连接级别的 onerror
+    eventSource.addEventListener('business-error', function (event: MessageEvent) {
+      if (streamCompleted) return
+      try {
+        const errorData = JSON.parse(event.data)
+        console.error('[SSE] 业务错误:', errorData)
+        const errorMessage = errorData.message || '生成过程中出现错误'
+        const msgItem = messages.value[aiMessageIndex]
+        if (msgItem) {
+          msgItem.content = `❌ ${errorMessage}`
+          msgItem.loading = false
+        }
+        message.error(errorMessage)
+        streamCompleted = true
+        isGenerating.value = false
+        eventSource?.close()
+      } catch {
+        console.error('[SSE] 解析 business-error 失败:', event.data)
+        handleError(new Error('服务器返回错误'), aiMessageIndex)
+      }
+    })
+
     eventSource.onerror = function () {
       if (streamCompleted || !isGenerating.value) return
 

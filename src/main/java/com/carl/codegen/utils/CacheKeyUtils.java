@@ -5,7 +5,9 @@ import cn.hutool.json.JSONUtil;
 
 /**
  * 缓存 key 生成工具类
- *
+ * <p>
+ * 将复杂请求对象序列化为 JSON 后取 MD5，保证相同参数生成相同 key，
+ * 同时将长 JSON 压缩为 32 字符定长串，避免 Redis key 过长。
  */
 public class CacheKeyUtils {
 
@@ -19,6 +21,7 @@ public class CacheKeyUtils {
         if (sourceObject == null) {
             return DigestUtil.md5Hex("null");
         }
+        // 先序列化为 JSON 保证内容一致性，再 MD5 压缩长度
         String json = JSONUtil.toJsonStr(sourceObject);
         return DigestUtil.md5Hex(json);
     }

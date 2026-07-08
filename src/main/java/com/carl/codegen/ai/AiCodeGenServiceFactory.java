@@ -1,5 +1,6 @@
 package com.carl.codegen.ai;
 
+import com.carl.codegen.ai.guardrail.PromptSafetyInputGuardrail;
 import com.carl.codegen.ai.tools.BaseTool;
 import com.carl.codegen.ai.tools.FileWriteTool;
 import com.carl.codegen.ai.tools.ToolManager;
@@ -112,6 +113,8 @@ public class AiCodeGenServiceFactory {
                         .streamingChatModel(generalStreamingChatModel)
                         .chatMemory(chatMemory)
                         .tools(new FileWriteTool(codeGenTypeEnum.getValue()))
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        .maxSequentialToolsInvocations(100)
                         .build();
             }
             case VUE3 -> {
@@ -130,6 +133,8 @@ public class AiCodeGenServiceFactory {
                         .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
                                 toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
                         ))
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        .maxSequentialToolsInvocations(100)
                         .build();
             }
 
