@@ -30,8 +30,6 @@ public class RoutingChatModelConfig {
 
     private Boolean logResponses = false;
 
-    private Integer maxRetries;
-
     @Bean
     @Scope("prototype")
     public ChatModel routingChatModel() {
@@ -43,7 +41,6 @@ public class RoutingChatModelConfig {
                 .temperature(temperature)
                 .logRequests(logRequests)
                 .logResponses(logResponses)
-                .maxRetries(maxRetries != null ? maxRetries : 2)
                 .build();
     }
 }

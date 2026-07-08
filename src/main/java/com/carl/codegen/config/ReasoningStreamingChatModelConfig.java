@@ -1,15 +1,21 @@
 package com.carl.codegen.config;
 
+import com.carl.codegen.monitor.ChatModelMetricsListener;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import jakarta.annotation.Resource;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
 
+import java.util.List;
+
 /**
- * 推理专用流式模型多例配置 — 用于复杂的代码生成任务
+ * 推理专用流式模型多例配置 — 用于复杂的代码生成任务。
+ *
+ * 同样注册 ChatModelMetricsListener，使推理模型调用也被监控覆盖。
  */
 @Configuration
 @ConfigurationProperties(prefix = "langchain4j.open-ai.reasoning-streaming-chat-model")
@@ -30,7 +36,9 @@ public class ReasoningStreamingChatModelConfig {
 
     private Boolean logResponses = false;
 
-    private Integer maxRetries;
+    /** 指标监听器，与通用模型共享同一个实例 */
+    @Resource
+    private ChatModelMetricsListener chatModelMetricsListener;
 
     @Bean
     @Scope("prototype")
@@ -43,7 +51,7 @@ public class ReasoningStreamingChatModelConfig {
                 .temperature(temperature)
                 .logRequests(logRequests)
                 .logResponses(logResponses)
-                .maxRetries(maxRetries != null ? maxRetries : 2)
+                .listeners(List.of(chatModelMetricsListener))
                 .build();
     }
 }

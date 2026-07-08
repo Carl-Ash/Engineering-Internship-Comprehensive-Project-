@@ -1,12 +1,16 @@
 package com.carl.codegen.config;
 
+import com.carl.codegen.monitor.ChatModelMetricsListener;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import jakarta.annotation.Resource;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
+
+import java.util.List;
 
 /**
  * 通用流式聊天模型多例配置 — 每次获取创建新实例，解决并发阻塞问题。
@@ -30,7 +34,9 @@ public class StreamingChatModelConfig {
 
     private boolean logResponses;
 
-    private Integer maxRetries;
+    /** 指标监听器，在 AI 调用各阶段触发指标收集 */
+    @Resource
+    private ChatModelMetricsListener chatModelMetricsListener;
 
     @Bean
     @Scope("prototype")
@@ -43,7 +49,8 @@ public class StreamingChatModelConfig {
                 .temperature(temperature)
                 .logRequests(logRequests)
                 .logResponses(logResponses)
-                .maxRetries(maxRetries != null ? maxRetries : 2)
+                // 注册监听器：每个模型实例独立持有，线程安全
+                .listeners(List.of(chatModelMetricsListener))
                 .build();
     }
 }

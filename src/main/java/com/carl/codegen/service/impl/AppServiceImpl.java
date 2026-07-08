@@ -10,6 +10,8 @@ import com.carl.codegen.config.CosClientConfig;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.AiCodeGenFacade;
 import com.carl.codegen.manager.CosManager;
+import com.carl.codegen.monitor.MonitorContext;
+import com.carl.codegen.monitor.MonitorContextHolder;
 import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.core.handler.StreamHandlerExecutor;
 import com.carl.codegen.exception.BusinessException;
@@ -46,11 +48,10 @@ import java.util.stream.Collectors;
 
 /**
  * 应用 服务层实现。
- *
  */
 @Service
 @Slf4j
-public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppService{
+public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
     @Resource
     private UserService userService;
@@ -180,10 +181,19 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         this.updateById(statusUpdate);
         // 保存对话历史到数据库
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        // 设置监控上下文
+        MonitorContextHolder.setContext(
+                MonitorContext.builder()
+                        .userId(loginUser.getId().toString())
+                        .appId(appId.toString())
+                        .build()
+        );
         // 调用 AI 生成代码
         Flux<String> codeFlux = aiCodeGenFacade.genAndSaveStream(message, codeGenTypeEnum, appId);
         // 收集AI响应内容，并完成后保存到数据库对话历史
-        return streamHandlerExecutor.execute(codeFlux, chatHistoryService, appId, loginUser, codeGenTypeEnum);
+        return streamHandlerExecutor.execute(codeFlux, chatHistoryService, appId, loginUser, codeGenTypeEnum)
+                // 无论流正常完成、出错还是被取消，都要清除 ThreadLocal 避免内存泄漏
+                .doFinally(signalType -> MonitorContextHolder.clearContext());
     }
 
     @Override
@@ -331,6 +341,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
 
     /**
      * 删除应用时关联删除对话历史
+     *
      * @param id 应用ID
      * @return 是否删除成功
      */
@@ -341,7 +352,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         if (appId <= 0) return false;
         try {
             chatHistoryService.deleteByAppId(appId);
-        } catch (Exception e) { log.error("删除应用关联对话历史失败", e.getMessage()); }
+        } catch (Exception e) {
+            log.error("删除应用关联对话历史失败", e.getMessage());
+        }
 
         return super.removeById(id);
     }
