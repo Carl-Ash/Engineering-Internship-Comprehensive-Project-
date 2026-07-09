@@ -35,3 +35,9 @@ build/
 ### CUSTOM ###
 application-local.yml
 tmp
+.env*
+image-generator/
+node_modules/
+__pycache__/
+*.pyc
+.claude/

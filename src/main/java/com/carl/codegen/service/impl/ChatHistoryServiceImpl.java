@@ -16,6 +16,7 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.carl.codegen.model.entity.ChatHistory;
 import com.carl.codegen.mapper.ChatHistoryMapper;
 import com.carl.codegen.service.ChatHistoryService;
+import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
@@ -42,6 +43,9 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
     @Resource
     @Lazy
     private AppService appService;
+
+    @Resource
+    private RedisChatMemoryStore redisChatMemoryStore;
 
     @Override
     public int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount) {
@@ -228,6 +232,8 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
                     log.warn("检测到不完整的工具调用序列，从索引 {} 截断，缺少 tool_call_id: {}",
                             i, toolCallIds);
                     messages.subList(i, messages.size()).clear();
+                    // 持久化清理后的消息列表到 Redis，避免后续请求读到脏数据
+                    redisChatMemoryStore.updateMessages(chatMemory.id(), messages);
                 }
                 break;
             }

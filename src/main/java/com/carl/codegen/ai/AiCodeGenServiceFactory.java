@@ -76,8 +76,27 @@ public class AiCodeGenServiceFactory {
      * 根据 appId、codeGenTypeEnum 和修改模式获取服务（带缓存）
      */
     public AiCodeGenService getAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum, boolean isModify) {
+        // 每次获取服务前先清理 Redis 中可能残留的不完整工具调用序列
+        cleanupStaleToolCalls(appId);
         String cacheKey = createCacheKey(appId, codeGenTypeEnum, isModify);
         return serviceCache.get(cacheKey, key -> createAiCodeGenService(appId, codeGenTypeEnum, isModify));
+    }
+
+    /**
+     * 清理 Redis 中可能残留的不完整工具调用序列（如用户取消生成导致）。
+     */
+    private void cleanupStaleToolCalls(long appId) {
+        try {
+            MessageWindowChatMemory tempMemory = MessageWindowChatMemory
+                    .builder()
+                    .id(appId)
+                    .chatMemoryStore(redisChatMemoryStore)
+                    .maxMessages(200)
+                    .build();
+            chatHistoryService.loadChatHistoryToMemory(appId, tempMemory, 200);
+        } catch (Exception e) {
+            log.debug("清理过期工具调用失败，appId: {}, error: {}", appId, e.getMessage());
+        }
     }
 
     /**
