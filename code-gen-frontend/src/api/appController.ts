@@ -208,6 +208,20 @@ export async function updateApp(body: API.AppUpdateRequest, options?: { [key: st
   })
 }
 
+/** POST /app/upload/image */
+export async function uploadImage(file: File, options?: { [key: string]: any }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<API.BaseResponseString>('/app/upload/image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    data: formData,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /app/version/rollback */
 export async function rollbackVersion(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

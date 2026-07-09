@@ -49,4 +49,12 @@ public interface AiCodeGenService {
      */
     @SystemMessage(fromResource = "prompt/codegen-vue3-system-prompt.txt")
     TokenStream generateVue3CodeStreaming(@MemoryId Long appId, @UserMessage String prompt);
+
+    /**
+     * 生成 Vue3 项目代码 (非流式，使用 ChatModel 避免 DeepSeek 流式工具调用解析问题)
+     * @param prompt 代码提示
+     * @return AI 最终回复文本
+     */
+    @SystemMessage(fromResource = "prompt/codegen-vue3-system-prompt.txt")
+    String generateVue3Code(@MemoryId Long appId, @UserMessage String prompt);
 }

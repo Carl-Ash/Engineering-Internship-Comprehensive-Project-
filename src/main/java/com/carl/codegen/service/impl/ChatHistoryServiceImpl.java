@@ -17,6 +17,8 @@ import com.carl.codegen.model.entity.ChatHistory;
 import com.carl.codegen.mapper.ChatHistoryMapper;
 import com.carl.codegen.service.ChatHistoryService;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import jakarta.annotation.Resource;
@@ -43,6 +45,14 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
 
     @Override
     public int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount) {
+        // Redis 中已有完整会话上下文（含工具调用），无需从 DB 加载
+        if (!chatMemory.messages().isEmpty()) {
+            int removed = cleanupIncompleteToolCalls(chatMemory);
+            log.debug("Redis 中已存在 appId: {} 的会话上下文，共 {} 条消息，清理 {} 条不完整工具调用",
+                    appId, chatMemory.messages().size(), removed);
+            return chatMemory.messages().size();
+        }
+        // Redis 为空（首次使用或过期），从 DB 加载历史作为回退
         try {
             QueryWrapper queryWrapper = QueryWrapper.create()
                     .eq(ChatHistory::getAppId, appId)
@@ -50,10 +60,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
                     .limit(1, maxCount);
             List<ChatHistory> historyList = this.list(queryWrapper);
             if (CollUtil.isEmpty(historyList)) return 0;
-            // 反转列表，确保按时间正序（老的在前，新的在后）
             Collections.reverse(historyList);
-            // 先清理历史缓存，防止重复加载
-            chatMemory.clear();
             int loadedCount = 0;
             for (ChatHistory history : historyList) {
                 if (ChatHistoryMessageTypeEnum.USER.getValue().equals(history.getMessageType())) {
@@ -64,7 +71,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
                     loadedCount++;
                 }
             }
-            log.info("成功为 appId: {} 加载了 {} 条历史对话", appId, loadedCount);
+            log.info("从 DB 为 appId: {} 加载了 {} 条历史对话", appId, loadedCount);
             return loadedCount;
         } catch (Exception e) {
             log.error("加载历史对话失败，appId: {}, error: {}", appId, e.getMessage(), e);
@@ -115,7 +122,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         ThrowUtils.throwIf(ChatHistoryMessageTypeEnum.getEnumByValue(messageType) == null, ErrorCode.PARAMS_ERROR, "不支持的消息类型: " + messageType);
 
         // 保存到数据库
-        ChatHistory chatHistory = ChatHistory.builder().appId(appId).message(message).messageType(messageType).userId(userId).build();
+        ChatHistory chatHistory = ChatHistory.builder().appId(appId).message(message).messageType(messageType).userId(userId).isDelete(0).build();
         return this.save(chatHistory);
     }
 
@@ -187,6 +194,46 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         QueryWrapper queryWrapper = this.getQueryWrapper(queryRequest);
         // 查询数据
         return this.page(Page.of(1, pageSize), queryWrapper);
+    }
+
+    /**
+     * 清理 Redis 聊天记忆中不完整的工具调用序列。
+     * 当 AI 消息带有 tool_calls 但缺少对应的 ToolExecutionResultMessage 时，
+     * 移除这些不完整的消息，避免 OpenAI API 报错。
+     *
+     * @return 被移除的消息数量
+     */
+    private int cleanupIncompleteToolCalls(MessageWindowChatMemory chatMemory) {
+        List<ChatMessage> messages = chatMemory.messages();
+        int initialSize = messages.size();
+
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage msg = messages.get(i);
+            if (msg instanceof AiMessage aiMsg && aiMsg.hasToolExecutionRequests()) {
+                var toolCallIds = aiMsg.toolExecutionRequests().stream()
+                        .map(req -> req.id())
+                        .collect(java.util.stream.Collectors.toSet());
+
+                for (int j = i + 1; j < messages.size(); j++) {
+                    ChatMessage nextMsg = messages.get(j);
+                    if (nextMsg instanceof ToolExecutionResultMessage toolResult) {
+                        toolCallIds.remove(toolResult.id());
+                    }
+                    if (!(nextMsg instanceof ToolExecutionResultMessage)) {
+                        break;
+                    }
+                }
+
+                if (!toolCallIds.isEmpty()) {
+                    log.warn("检测到不完整的工具调用序列，从索引 {} 截断，缺少 tool_call_id: {}",
+                            i, toolCallIds);
+                    messages.subList(i, messages.size()).clear();
+                }
+                break;
+            }
+        }
+
+        return initialSize - messages.size();
     }
 
 }

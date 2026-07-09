@@ -4,7 +4,10 @@ import cn.hutool.core.util.RuntimeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -27,6 +30,18 @@ public class VueBuilder {
                 return true;
             }
             log.error("命令执行失败，退出码: {}", exitCode);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), Charset.defaultCharset()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.error("stderr: {}", line);
+                }
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.info("stdout: {}", line);
+                }
+            }
             return false;
         } catch (Exception e) {
             log.error("执行命令失败: {}, 错误信息: {}", command, e.getMessage());

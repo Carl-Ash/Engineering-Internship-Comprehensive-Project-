@@ -90,6 +90,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         app.setVisibility(StrUtil.isNotBlank(appAddRequest.getVisibility())
                 ? appAddRequest.getVisibility()
                 : AppConstant.VISIBILITY_PUBLIC);
+        app.setIsDelete(0);
+        app.setDownloadCount(0);
+        app.setPriority(0);
         boolean result = this.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         log.info("应用创建成功，ID: {}, 类型: {}", app.getId(), selectedCodeGenType.getValue());

@@ -1,13 +1,10 @@
 package com.carl.codegen.core;
 
 import cn.hutool.json.JSONUtil;
+import com.carl.codegen.ai.AiCodeGenService;
 import com.carl.codegen.ai.AiCodeGenServiceFactory;
 import com.carl.codegen.ai.model.HtmlResult;
 import com.carl.codegen.ai.model.MultiFileResult;
-import com.carl.codegen.ai.model.message.AiResponseMessage;
-import com.carl.codegen.ai.model.message.ThinkingMessage;
-import com.carl.codegen.ai.model.message.ToolRequestMessage;
-import com.carl.codegen.ai.model.message.ToolResultMessage;
 import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.core.builder.VueBuilder;
 import com.carl.codegen.core.parser.CodeParserExe;
@@ -17,11 +14,6 @@ import com.carl.codegen.exception.ErrorCode;
 import com.carl.codegen.mapper.AppMapper;
 import com.carl.codegen.model.entity.App;
 import com.carl.codegen.model.enums.CodeGenTypeEnum;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.chat.response.PartialThinking;
-import dev.langchain4j.service.TokenStream;
-import dev.langchain4j.service.tool.BeforeToolExecution;
-import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -109,43 +101,62 @@ public class AiCodeGenFacade {
             }
             case VUE3 -> {
                 boolean isModify = aiCodeGenServiceFactory.isModifyMode(appId);
-                TokenStream tokenStream = aiCodeGenServiceFactory.getAiCodeGenService(appId, type, isModify).generateVue3CodeStreaming(appId, prompt);
-                yield processTokenStream(tokenStream, appId);
+                AiCodeGenService service = aiCodeGenServiceFactory.getAiCodeGenService(appId, type, isModify);
+                yield processVue3Generation(service, prompt, appId);
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型" + type.getValue());
         };
     }
 
-    private Flux<String> processTokenStream(TokenStream tokenStream, Long appId) {
+    /**
+     * VUE3 使用非流式 ChatModel 生成，避免 DeepSeek 流式 API 在工具调用时的
+     * SSE 解析兼容性问题。工具调用由框架内部以请求/响应方式处理，不受影响。
+     * <p>
+     * 生成过程在后台线程执行，主线程每 10 秒发送心跳（"."）防止前端 60 秒超时。
+     */
+    private Flux<String> processVue3Generation(AiCodeGenService service, String prompt, Long appId) {
         return Flux.create(sink -> {
-            tokenStream.onPartialResponse((String partialResponse) -> {
-                        AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
-                        sink.next(JSONUtil.toJsonStr(aiResponseMessage));
-                    })
-                    .onPartialThinking((PartialThinking partialThinking) -> {
-                        ThinkingMessage thinkingMessage = new ThinkingMessage(partialThinking);
-                        sink.next(JSONUtil.toJsonStr(thinkingMessage));
-                    })
-                    .beforeToolExecution((BeforeToolExecution before) -> {
-                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(before.request());
-                        sink.next(JSONUtil.toJsonStr(toolRequestMessage));
-                    })
-                    .onToolExecuted((ToolExecution toolExecution) -> {
-                        ToolResultMessage toolResultMessage = new ToolResultMessage(toolExecution);
-                        sink.next(JSONUtil.toJsonStr(toolResultMessage));
-                    })
-                    .onCompleteResponse((ChatResponse response) -> {
-                        // 同步构建 Vue 项目，构建完成后再通知前端流结束。
-                        // 这样用户看到"生成完成"时 dist 目录已就绪，预览不会看到旧内容或 404。
-                        String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue3_" + appId;
-                        vueBuilder.buildProject(projectPath);
-                        sink.complete();
-                    })
-                    .onError((Throwable error) -> {
-                        log.error("流式生成失败", error);
-                        sink.error(error);
-                    })
-                    .start();
+            try {
+                sink.next("正在生成 Vue3 项目...\n");
+                java.util.concurrent.atomic.AtomicReference<String> resultRef = new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.atomic.AtomicReference<Exception> errorRef = new java.util.concurrent.atomic.AtomicReference<>();
+                Thread genThread = Thread.ofVirtual()
+                        .name("vue-gen-" + appId)
+                        .start(() -> {
+                            try {
+                                resultRef.set(service.generateVue3Code(appId, prompt));
+                            } catch (Exception e) {
+                                errorRef.set(e);
+                            }
+                        });
+                while (genThread.isAlive()) {
+                    genThread.join(10000);
+                    if (genThread.isAlive() && !sink.isCancelled()) {
+                        sink.next("\n__hb__");
+                    }
+                }
+                Exception genError = errorRef.get();
+                if (genError != null) {
+                    throw genError;
+                }
+                sink.next("\n" + resultRef.get());
+                String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue3_" + appId;
+                boolean buildSuccess = vueBuilder.buildProject(projectPath);
+                if (!buildSuccess) {
+                    sink.next("\n项目构建失败，请检查生成的文件或重试。");
+                    updateAppStatus(appId, AppConstant.GEN_STATUS_FAILED, null);
+                    sink.complete();
+                    return;
+                }
+                App app = appMapper.selectOneById(appId);
+                int newVersion = (app != null && app.getVersion() != null) ? app.getVersion() + 1 : 1;
+                updateAppStatus(appId, AppConstant.GEN_STATUS_COMPLETED, newVersion);
+                sink.complete();
+            } catch (Exception e) {
+                log.error("VUE3生成失败", e);
+                updateAppStatus(appId, AppConstant.GEN_STATUS_FAILED, null);
+                sink.error(e);
+            }
         });
     }
 

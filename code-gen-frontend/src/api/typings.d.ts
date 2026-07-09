@@ -102,6 +102,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseObfuscateVO = {
+    code?: number
+    data?: ObfuscateVO
+    message?: string
+  }
+
   type BaseResponseString = {
     code?: number
     data?: string
@@ -185,6 +191,16 @@ declare namespace API {
     appId: number
     pageSize?: number
     lastCreateTime?: string
+  }
+
+  type ObfuscateRequest = {
+    sourceCode?: string
+    language?: string
+    scheme?: string
+  }
+
+  type ObfuscateVO = {
+    obfuscatedCode?: string
   }
 
   type LoginUserVO = {
@@ -286,6 +302,12 @@ declare namespace API {
     userAccount?: string
     userPassword?: string
     checkPassword?: string
+  }
+
+  type UserUpdateProfileRequest = {
+    userName?: string
+    userAvatar?: string
+    userProfile?: string
   }
 
   type UserUpdateRequest = {

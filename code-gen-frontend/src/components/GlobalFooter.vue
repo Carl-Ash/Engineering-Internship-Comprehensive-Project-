@@ -14,10 +14,10 @@
 <style scoped>
 .footer {
   background: var(--bg-header);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-top: 1px solid var(--border-color);
-  padding: 20px 24px;
+  padding: 18px 24px;
 }
 
 .footer-inner {
@@ -30,12 +30,14 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
+  font-weight: 500;
 }
 
 .footer-divider {
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  opacity: 0.6;
 }
 </style>

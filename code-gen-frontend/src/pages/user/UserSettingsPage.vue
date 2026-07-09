@@ -20,13 +20,16 @@
             @finish="handleSubmit"
           >
             <div class="form-avatar-row">
-              <div class="avatar-upload-wrap" @click="triggerUpload">
+              <div class="avatar-upload-wrap" @click="uploadingAvatar ? undefined : triggerUpload()">
                 <a-avatar :size="80" :src="formData.userAvatar" class="form-avatar">
                   <template #icon><UserOutlined /></template>
                 </a-avatar>
-                <div class="avatar-overlay">
+                <div class="avatar-overlay" v-if="!uploadingAvatar">
                   <CameraOutlined />
                   更换
+                </div>
+                <div class="avatar-overlay uploading" v-else>
+                  <a-spin size="small" />
                 </div>
                 <input
                   ref="fileInputRef"
@@ -98,30 +101,46 @@ import { message } from 'ant-design-vue'
 import { UserOutlined, CameraOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { updateUser } from '@/api/userController'
+import { updateUserProfile } from '@/api/userController'
+import { uploadImage } from '@/api/appController'
 
 const loginUserStore = useLoginUserStore()
 
 const formRef = ref<any>(null)
 const submitting = ref(false)
+const uploadingAvatar = ref(false)
 const fileInputRef = ref<HTMLInputElement>()
 
 const triggerUpload = () => {
   fileInputRef.value?.click()
 }
 
-const onFileChange = (e: Event) => {
+const onFileChange = async (e: Event) => {
   const target = e.target as HTMLInputElement
   const file = target.files?.[0]
   if (!file) return
 
-  const reader = new FileReader()
-  reader.onload = () => {
-    formData.userAvatar = reader.result as string
+  if (file.size > 5 * 1024 * 1024) {
+    message.error('图片大小不能超过 5MB')
+    target.value = ''
+    return
   }
-  reader.readAsDataURL(file)
-  // 重置 input 以便重复选同一文件
-  target.value = ''
+
+  uploadingAvatar.value = true
+  try {
+    const res = await uploadImage(file)
+    if (res.data.code === 0 && res.data.data) {
+      formData.userAvatar = res.data.data
+      message.success('头像上传成功')
+    } else {
+      message.error(res.data.message || '头像上传失败')
+    }
+  } catch {
+    message.error('头像上传失败，请稍后重试')
+  } finally {
+    uploadingAvatar.value = false
+    target.value = ''
+  }
 }
 
 const formData = reactive({
@@ -149,8 +168,7 @@ const handleSubmit = async () => {
   }
   submitting.value = true
   try {
-    const res = await updateUser({
-      id: loginUserStore.loginUser.id,
+    const res = await updateUserProfile({
       userName: formData.userName,
       userAvatar: formData.userAvatar || undefined,
       userProfile: formData.userProfile || undefined,
@@ -232,6 +250,11 @@ const handleSubmit = async () => {
   font-size: 11px;
   opacity: 0;
   transition: opacity 0.2s;
+}
+
+.avatar-overlay.uploading {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .form-avatar {

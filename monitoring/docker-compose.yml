@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:7.4.0-v1
     container_name: redis
     ports:
       - "6380:6379"
@@ -28,6 +28,7 @@ services:
       - "3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
       - grafana_data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin

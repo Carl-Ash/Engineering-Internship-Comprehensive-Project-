@@ -146,7 +146,7 @@ public class UserController {
     }
 
     /**
-     * 更新用户
+     * 更新用户（管理员）
      */
     @PostMapping("/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -156,6 +156,22 @@ public class UserController {
         }
         User user = new User();
         BeanUtil.copyProperties(userUpdateRequest, user);
+        boolean result = userService.updateById(user);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 更新个人资料（登录用户自己修改）
+     */
+    @PostMapping("/update/profile")
+    public BaseResponse<Boolean> updateProfile(@RequestBody UserUpdateProfileRequest request,
+                                                HttpServletRequest httpRequest) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(httpRequest);
+        User user = new User();
+        user.setId(loginUser.getId());
+        BeanUtil.copyProperties(request, user);
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);

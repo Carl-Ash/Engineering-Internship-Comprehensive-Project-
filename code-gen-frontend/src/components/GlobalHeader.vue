@@ -9,16 +9,16 @@
 
       <!-- 中间：导航菜单 -->
       <nav class="header-menu">
-        <RouterLink
+        <a
           v-for="item in menuItems"
           :key="item.key"
-          :to="item.key as string"
           class="menu-item"
           :class="{ active: selectedKeys.includes(item.key as string) }"
+          @click.prevent="handleMenuClick(item.key as string)"
         >
           <component v-if="item.icon" :is="item.icon" class="menu-icon" />
           <span>{{ item.label }}</span>
-        </RouterLink>
+        </a>
       </nav>
 
       <!-- 右侧：用户操作区域 -->
@@ -67,7 +67,11 @@ const router = useRouter()
 const selectedKeys = ref<string[]>(['/'])
 
 router.afterEach((to) => {
-  selectedKeys.value = [to.path]
+  if (to.path === '/' && to.query.obfuscator === '1') {
+    selectedKeys.value = ['/?obfuscator=1']
+  } else {
+    selectedKeys.value = [to.path]
+  }
 })
 
 interface MenuItem {
@@ -85,6 +89,11 @@ const originItems: MenuItem[] = [
     title: '主页',
   },
   {
+    key: '/?obfuscator=1',
+    label: '代码混淆',
+    title: '代码混淆',
+  },
+  {
     key: '/admin/userManage',
     label: '用户管理',
     title: '用户管理',
@@ -94,11 +103,16 @@ const originItems: MenuItem[] = [
     label: '应用管理',
     title: '应用管理',
   },
+  {
+    key: '/admin/chatManage',
+    label: '对话管理',
+    title: '对话管理',
+  },
 ]
 
 const filterMenus = (menus: MenuItem[]) => {
   return menus.filter((menu) => {
-    if (menu.key === '/admin/userManage') {
+    if (menu.key.startsWith('/admin/')) {
       const loginUser = loginUserStore.loginUser
       if (!loginUser || (loginUser.userRole !== 'admin' && loginUser.userRole !== 'superAdmin')) {
         return false
@@ -109,6 +123,14 @@ const filterMenus = (menus: MenuItem[]) => {
 }
 
 const menuItems = computed(() => filterMenus(originItems))
+
+const handleMenuClick = (key: string) => {
+  if (key === '/') {
+    router.push({ path: '/', query: {} })
+  } else {
+    router.push(key)
+  }
+}
 
 const doSettings = () => {
   router.push('/user/settings')

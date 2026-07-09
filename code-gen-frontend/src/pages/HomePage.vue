@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
+import { obfuscateCode } from '@/api/obfuscatorController'
 import { getDeployUrl } from '@/config/env'
-import { CodeGenTypeEnum, CODE_GEN_TYPE_OPTIONS } from '@/utils/codeGenTypes'
 import AppCard from '@/components/AppCard.vue'
+import { watch } from 'vue'
 
 const router = useRouter()
+const route = useRoute()
 const loginUserStore = useLoginUserStore()
 
 const userPrompt = ref('')
-const codeGenType = ref<string>(CodeGenTypeEnum.MULTI_FILE)
 const creating = ref(false)
 
 const myApps = ref<API.AppVO[]>([])
@@ -45,7 +46,7 @@ const createApp = async () => {
   }
   creating.value = true
   try {
-    const res = await addApp({ initPrompt: userPrompt.value.trim(), codeGenType: codeGenType.value })
+    const res = await addApp({ initPrompt: userPrompt.value.trim() })
     if (res.data.code === 0 && res.data.data) {
       message.success('应用创建成功')
       const appId = String(res.data.data)
@@ -107,9 +108,192 @@ const viewWork = (app: API.AppVO) => {
   }
 }
 
+// 代码混淆
+const obfuscatorOpen = ref(false)
+const sourceCode = ref('')
+const obfuscatedCode = ref('')
+const obfuscating = ref(false)
+const selectedLanguage = ref('python')
+const selectedScheme = ref('easy')
+
+const defaultExamples: Record<string, string> = {
+  python: `def fibonacci(n):
+    """Return the nth Fibonacci number."""
+    if n <= 1:
+        return n
+    a, b = 0, 1
+    for _ in range(n - 1):
+        a, b = b, a + b
+    return b
+
+class Calculator:
+    def __init__(self, name):
+        self.name = name
+        self.history = []
+
+    def add(self, x, y):
+        result = x + y
+        self.history.append(('add', x, y, result))
+        return result
+
+    def multiply(self, x, y):
+        result = x * y
+        self.history.append(('multiply', x, y, result))
+        return result
+
+calc = Calculator("MyCalc")
+print(calc.add(fibonacci(5), fibonacci(8)))`,
+  c: `#include <stdio.h>
+#include <string.h>
+
+int fibonacci(int n) {
+    if (n <= 1) return n;
+    int a = 0, b = 1, temp;
+    for (int i = 0; i < n - 1; i++) {
+        temp = a + b;
+        a = b;
+        b = temp;
+    }
+    return b;
+}
+
+int main() {
+    int secret = 42;
+    char name[] = "world";
+    printf("fib(%d) = %d\\n", 10, fibonacci(10));
+    printf("Hello %s! Secret: %d\\n", name, secret * 2);
+    return 0;
+}`,
+  javascript: `function fibonacci(n) {
+    if (n <= 1) return n;
+    let a = 0, b = 1;
+    for (let i = 0; i < n - 1; i++) {
+        [a, b] = [b, a + b];
+    }
+    return b;
+}
+
+class Calculator {
+    constructor(name) {
+        this.name = name;
+        this.history = [];
+    }
+
+    add(x, y) {
+        const result = x + y;
+        this.history.push({ op: 'add', x, y, result });
+        return result;
+    }
+
+    multiply(x, y) {
+        const result = x * y;
+        this.history.push({ op: 'multiply', x, y, result });
+        return result;
+    }
+}
+
+const calc = new Calculator('MyCalc');
+console.log(calc.add(fibonacci(5), fibonacci(8)));
+console.log('History:', JSON.stringify(calc.history, null, 2));`,
+}
+
+const languageOptions = [
+  { label: 'Python', value: 'python' },
+  { label: 'C', value: 'c' },
+  { label: 'JavaScript', value: 'javascript' },
+]
+const schemeOptions: Record<string, { label: string; value: string }[]> = {
+  python: [
+    { label: '基础混淆 (AST)', value: 'easy' },
+    { label: '强混淆 (字符串+控制流)', value: 'diff' },
+    { label: '基础混淆 (多策略)', value: 'baseline' },
+  ],
+  c: [
+    { label: '基础混淆 (重命名)', value: 'easy' },
+    { label: '强混淆 (字符串加密)', value: 'diff' },
+  ],
+  javascript: [
+    { label: '基础混淆 (Base64)', value: 'easy' },
+    { label: '强混淆 (RC4+控制流)', value: 'diff' },
+  ],
+}
+
+watch(selectedLanguage, () => {
+  selectedScheme.value = schemeOptions[selectedLanguage.value]?.[0]?.value || 'easy'
+  sourceCode.value = defaultExamples[selectedLanguage.value] || ''
+  obfuscatedCode.value = ''
+})
+
+const toggleObfuscator = () => {
+  if (!obfuscatorOpen.value) {
+    sourceCode.value = defaultExamples[selectedLanguage.value] || ''
+  }
+  obfuscatorOpen.value = !obfuscatorOpen.value
+}
+
+const doObfuscate = async () => {
+  if (!sourceCode.value.trim()) {
+    message.warning('请输入源代码')
+    return
+  }
+  obfuscating.value = true
+  try {
+    const res = await obfuscateCode({
+      sourceCode: sourceCode.value,
+      language: selectedLanguage.value,
+      scheme: selectedScheme.value,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      obfuscatedCode.value = res.data.data.obfuscatedCode || ''
+      message.success('混淆完成')
+    } else {
+      message.error('混淆失败：' + (res.data.message || '未知错误'))
+    }
+  } catch (error) {
+    console.error('代码混淆失败：', error)
+    message.error('混淆失败，请重试')
+  } finally {
+    obfuscating.value = false
+  }
+}
+
+const copyResult = async () => {
+  if (!obfuscatedCode.value) return
+  try {
+    await navigator.clipboard.writeText(obfuscatedCode.value)
+    message.success('已复制到剪贴板')
+  } catch {
+    message.error('复制失败')
+  }
+}
+
+const clearObfuscator = () => {
+  sourceCode.value = ''
+  obfuscatedCode.value = ''
+}
+
+const openObfuscatorPanel = () => {
+  obfuscatorOpen.value = true
+  sourceCode.value = defaultExamples[selectedLanguage.value] || ''
+  setTimeout(() => {
+    document.getElementById('obfuscatorSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, 100)
+}
+
+watch(() => route.query.obfuscator, (val) => {
+  if (val === '1') {
+    openObfuscatorPanel()
+  } else {
+    obfuscatorOpen.value = false
+  }
+})
+
 onMounted(() => {
   loadMyApps()
   loadFeaturedApps()
+  if (route.query.obfuscator === '1') {
+    openObfuscatorPanel()
+  }
 })
 </script>
 
@@ -156,17 +340,7 @@ onMounted(() => {
             class="prompt-input"
             @press-enter="createApp"
           />
-          <div class="type-selector">
-            <span class="type-label">生成模式</span>
-            <a-radio-group v-model:value="codeGenType">
-              <a-radio
-                v-for="opt in CODE_GEN_TYPE_OPTIONS"
-                :key="opt.value"
-                :value="opt.value"
-              >{{ opt.label }}</a-radio>
-            </a-radio-group>
-          </div>
-          <a-button
+<a-button
             type="primary"
             size="large"
             class="submit-btn"
@@ -211,6 +385,74 @@ onMounted(() => {
           <span class="chip-icon">🎨</span>
           <span class="chip-text">作品集</span>
         </button>
+      </div>
+
+      <!-- 代码混淆工具 -->
+      <div id="obfuscatorSection" class="section">
+        <div class="obfuscator-header" @click="toggleObfuscator">
+          <h2 class="section-title" style="margin-bottom:0;cursor:pointer">代码混淆工具</h2>
+          <span class="obfuscator-toggle">{{ obfuscatorOpen ? '收起 ▲' : '展开 ▼' }}</span>
+        </div>
+        <div v-if="obfuscatorOpen" class="obfuscator-panel">
+          <div class="obfuscator-toolbar">
+            <div class="obfuscator-selects">
+              <a-select
+                v-model:value="selectedLanguage"
+                size="small"
+                style="width: 100px"
+                :options="languageOptions"
+              />
+              <a-select
+                v-model:value="selectedScheme"
+                size="small"
+                style="width: 180px"
+                :options="schemeOptions[selectedLanguage]"
+              />
+            </div>
+          </div>
+          <div class="obfuscator-body">
+            <div class="obfuscator-pane">
+              <div class="obfuscator-pane-header">
+                <span class="pane-label">源代码 ({{ selectedLanguage === 'c' ? 'C' : selectedLanguage === 'javascript' ? 'JavaScript' : 'Python' }})</span>
+                <a-button size="small" type="link" @click="clearObfuscator">清空</a-button>
+              </div>
+              <a-textarea
+                v-model:value="sourceCode"
+                :placeholder="'粘贴 ' + (selectedLanguage === 'c' ? 'C' : selectedLanguage === 'javascript' ? 'JavaScript' : 'Python') + ' 源代码...'"
+                :rows="12"
+                class="obfuscator-input"
+              />
+            </div>
+            <div class="obfuscator-pane">
+              <div class="obfuscator-pane-header">
+                <span class="pane-label">混淆结果</span>
+                <a-button
+                  size="small"
+                  type="link"
+                  @click="copyResult"
+                  :disabled="!obfuscatedCode"
+                >复制</a-button>
+              </div>
+              <a-textarea
+                v-model:value="obfuscatedCode"
+                :rows="12"
+                class="obfuscator-output"
+                readonly
+                placeholder="混淆后的代码将显示在这里..."
+              />
+            </div>
+          </div>
+          <div class="obfuscator-actions">
+            <a-button
+              type="primary"
+              size="large"
+              @click="doObfuscate"
+              :loading="obfuscating"
+            >
+              执行混淆
+            </a-button>
+          </div>
+        </div>
       </div>
 
       <!-- 我的作品 -->
@@ -269,13 +511,15 @@ onMounted(() => {
 #homePage {
   width: 100%;
   min-height: 100vh;
-  background: linear-gradient(180deg,
-    #f8fafc 0%,
-    #f0f4ff 25%,
-    #f8f6fd 50%,
-    #f0f8f6 75%,
-    #f8fafc 100%
-  );
+  background:
+    linear-gradient(180deg,
+      rgba(248, 250, 252, 0.82) 0%,
+      rgba(240, 244, 255, 0.82) 25%,
+      rgba(248, 246, 253, 0.82) 50%,
+      rgba(240, 248, 246, 0.82) 75%,
+      rgba(248, 250, 252, 0.82) 100%
+    ),
+    url('../../assets/backgrounds/hero-bg.png') center/cover no-repeat;
   position: relative;
   overflow: hidden;
 }
@@ -559,24 +803,6 @@ onMounted(() => {
   box-shadow: none !important;
 }
 
-.type-selector {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.type-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.type-selector :deep(.ant-radio-group) {
-  display: flex;
-  gap: 16px;
-}
-
 .submit-btn {
   margin-top: 12px;
   width: 100%;
@@ -690,6 +916,102 @@ onMounted(() => {
   margin-top: 40px;
 }
 
+/* ====== 代码混淆工具 ====== */
+.obfuscator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.obfuscator-toggle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+}
+
+.obfuscator-header:hover .obfuscator-toggle {
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #3b82f6;
+}
+
+.obfuscator-panel {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  margin-top: 20px;
+}
+
+.obfuscator-toolbar {
+  margin-bottom: 16px;
+}
+
+.obfuscator-selects {
+  display: flex;
+  gap: 10px;
+}
+
+.obfuscator-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.obfuscator-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pane-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.obfuscator-input :deep(textarea),
+.obfuscator-output :deep(textarea) {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  resize: vertical;
+}
+
+.obfuscator-output :deep(textarea) {
+  background: #f0fdf4 !important;
+}
+
+.obfuscator-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.obfuscator-actions .ant-btn-primary {
+  min-width: 160px;
+  height: 40px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  border: none;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
+}
+
+.obfuscator-actions .ant-btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+}
+
 @media (max-width: 768px) {
   .hero-title {
     font-size: 34px;
@@ -708,6 +1030,9 @@ onMounted(() => {
   .quick-chip {
     padding: 8px 16px;
     font-size: 13px;
+  }
+  .obfuscator-body {
+    grid-template-columns: 1fr;
   }
 }
 </style>

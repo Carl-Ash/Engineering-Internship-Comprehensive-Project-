@@ -119,6 +119,43 @@
           </a-descriptions-item>
         </a-descriptions>
       </a-card>
+
+      <!-- 版本回滚 -->
+      <a-card title="版本管理" style="margin-top: 24px" v-if="currentVersion > 1">
+        <a-descriptions :column="1" bordered size="small">
+          <a-descriptions-item label="当前版本">
+            <a-tag color="blue">v{{ currentVersion }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="下载次数">
+            {{ appInfo?.downloadCount ?? 0 }}
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-divider />
+        <div class="rollback-area">
+          <span class="rollback-label">回退到历史版本：</span>
+          <a-select
+            v-model:value="targetVersion"
+            placeholder="请选择目标版本"
+            style="width: 160px"
+          >
+            <a-select-option
+              v-for="v in versionOptions"
+              :key="v"
+              :value="v"
+            >v{{ v }}</a-select-option>
+          </a-select>
+          <a-button
+            type="primary"
+            danger
+            :loading="rollingBack"
+            :disabled="!targetVersion"
+            @click="handleRollback"
+            style="margin-left: 12px"
+          >
+            确认回退
+          </a-button>
+        </div>
+      </a-card>
     </div>
   </div>
 </template>
@@ -126,9 +163,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { getAppVoById, updateApp, updateAppByAdmin } from '@/api/appController'
+import { getAppVoById, updateApp, updateAppByAdmin, rollbackVersion } from '@/api/appController'
 import { formatCodeGenType } from '@/utils/codeGenTypes'
 import { formatTime } from '@/utils/time'
 import UserInfo from '@/components/UserInfo.vue'
@@ -144,6 +181,19 @@ const appInfo = ref<API.AppVO>()
 const loading = ref(false)
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
+
+// 版本回滚
+const currentVersion = computed(() => appInfo.value?.version ?? 0)
+const targetVersion = ref<number>()
+const rollingBack = ref(false)
+const versionOptions = computed(() => {
+  const max = currentVersion.value
+  const options: number[] = []
+  for (let v = 1; v < max; v++) {
+    options.push(v)
+  }
+  return options
+})
 
 // 表单数据
 const formData = reactive({
@@ -182,7 +232,7 @@ const fetchAppInfo = async () => {
 
   loading.value = true
   try {
-    const res = await getAppVoById({ id: Number(id) })
+    const res = await getAppVoById({ id: id as unknown as number })
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
@@ -271,6 +321,38 @@ const goToChat = () => {
   }
 }
 
+// 版本回滚
+const handleRollback = () => {
+  if (!appInfo.value?.id || !targetVersion.value) return
+  Modal.confirm({
+    title: '确认版本回退',
+    content: `确定要将应用回退到 v${targetVersion.value} 吗？当前版本为 v${currentVersion.value}。此操作不可撤销。`,
+    okText: '确认回退',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: async () => {
+      rollingBack.value = true
+      try {
+        const res = await rollbackVersion({
+          appId: appInfo.value!.id!,
+          targetVersion: targetVersion.value!,
+        })
+        if (res.data.code === 0) {
+          message.success(res.data.data || '回退成功')
+          targetVersion.value = undefined
+          await fetchAppInfo()
+        } else {
+          message.error(res.data.message || '回退失败')
+        }
+      } catch {
+        message.error('回退失败，请稍后重试')
+      } finally {
+        rollingBack.value = false
+      }
+    },
+  })
+}
+
 // 打开预览
 const openPreview = () => {
   if (appInfo.value?.codeGenType && appInfo.value?.id) {
@@ -322,6 +404,18 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 4px;
+}
+
+.rollback-area {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rollback-label {
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 :deep(.ant-card) {

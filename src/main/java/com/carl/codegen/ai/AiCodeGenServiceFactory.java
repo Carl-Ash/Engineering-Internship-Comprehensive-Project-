@@ -101,9 +101,9 @@ public class AiCodeGenServiceFactory {
                 .builder()
                 .id(appId)
                 .chatMemoryStore(redisChatMemoryStore)
-                .maxMessages(20)
+                .maxMessages(200)
                 .build();
-        chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 20);
+        chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 200);
         return switch (codeGenTypeEnum) {
             case HTML, MULTI_FILE -> {
                 StreamingChatModel generalStreamingChatModel = SpringContextUtil.getBean(
@@ -128,6 +128,7 @@ public class AiCodeGenServiceFactory {
                         "reasoningStreamingChatModel", StreamingChatModel.class);
                 yield AiServices.builder(AiCodeGenService.class)
                         .streamingChatModel(reasoningStreamingChatModel)
+                        .chatModel(chatModel)
                         .chatMemoryProvider(memoryId -> chatMemory)
                         .tools((Object[]) tools)
                         .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(

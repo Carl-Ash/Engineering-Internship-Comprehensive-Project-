@@ -113,6 +113,18 @@ const handleViewWork = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.app-placeholder svg {
+  opacity: 0.4;
+  transition: all 0.3s ease;
+}
+
+.app-card:hover .app-placeholder svg {
+  opacity: 0.6;
+  transform: scale(1.1);
 }
 
 .status-badge {

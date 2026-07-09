@@ -70,26 +70,23 @@
         </div>
 
         <!-- 选中元素提示 -->
-        <a-alert
-          v-if="selectedElementInfo"
-          class="selected-element-alert"
-          type="info"
-          closable
-          @close="clearSelectedElement"
-        >
-          <template #message>
-            <div class="element-info">
-              <div class="element-tag-line">
-                <span class="element-tag-label">选中元素：{{ selectedElementInfo.tagName.toLowerCase() }}</span>
-                <span v-if="selectedElementInfo.id" class="element-id">#{{ selectedElementInfo.id }}</span>
-                <span v-if="selectedElementInfo.className" class="element-class">.{{ selectedElementInfo.className.split(' ').join('.') }}</span>
-              </div>
-              <div class="element-selector">
-                选择器: <code>{{ selectedElementInfo.selector }}</code>
-              </div>
-            </div>
-          </template>
-        </a-alert>
+        <div v-if="selectedElementInfo" class="selected-element-bar">
+          <div class="element-bar-left">
+            <span class="element-badge" :class="'badge-' + (selectedElementInfo.tagName.toLowerCase())">
+              &lt;{{ selectedElementInfo.tagName.toLowerCase() }}&gt;
+            </span>
+            <span v-if="selectedElementInfo.id" class="element-id-badge">#{{ selectedElementInfo.id }}</span>
+            <span class="element-class-badge" v-if="selectedElementInfo.className">
+              {{ selectedElementInfo.className.split(' ').filter(c => c && !c.includes('nth-child')).slice(0, 2).map(c => '.' + c).join(' ') }}
+            </span>
+            <span v-if="selectedElementInfo.textContent" class="element-text-preview">
+              "{{ selectedElementInfo.textContent.substring(0, 50) }}{{ selectedElementInfo.textContent.length > 50 ? '...' : '' }}"
+            </span>
+          </div>
+          <div class="element-bar-right">
+            <a-button type="link" size="small" @click="clearSelectedElement">取消选择</a-button>
+          </div>
+        </div>
 
         <!-- 输入区 -->
         <div class="input-container">
@@ -419,7 +416,7 @@ const loadMoreHistory = async () => {
   await loadChatHistory(true)
 }
 
-const fetchAppInfo = async () => {
+const fetchAppInfo = async (retryCount = 0) => {
   const id = route.params.id as string
   if (!id) {
     message.error('应用ID不存在')
@@ -430,7 +427,7 @@ const fetchAppInfo = async () => {
   appId.value = id
 
   try {
-    const res = await getAppVoById({ id: Number(id) })
+    const res = await getAppVoById({ id: id as unknown as number })
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
@@ -451,11 +448,19 @@ const fetchAppInfo = async () => {
       ) {
         await sendInitialMessage(appInfo.value.initPrompt)
       }
+    } else if (retryCount < 2) {
+      // 创建应用后可能存在短暂的数据不可见窗口，延迟后重试
+      await new Promise((r) => setTimeout(r, 600))
+      return fetchAppInfo(retryCount + 1)
     } else {
       message.error('获取应用信息失败')
       router.push('/')
     }
   } catch (error) {
+    if (retryCount < 2) {
+      await new Promise((r) => setTimeout(r, 600))
+      return fetchAppInfo(retryCount + 1)
+    }
     console.error('获取应用信息失败：', error)
     message.error('获取应用信息失败')
     router.push('/')
@@ -490,14 +495,12 @@ const sendMessage = async () => {
   let message = userInput.value.trim()
   // 有选中元素时，拼接元素信息到提示词中
   if (selectedElementInfo.value) {
-    let elementContext = `\n\n选中元素信息：`
-    if (selectedElementInfo.value.pagePath) {
-      elementContext += `\n- 页面路径: ${selectedElementInfo.value.pagePath}`
-    }
-    elementContext += `\n- 标签: ${selectedElementInfo.value.tagName.toLowerCase()}\n- 选择器: ${selectedElementInfo.value.selector}`
+    let elementContext = `\n\n【选中元素】`
+    elementContext += `\n<${selectedElementInfo.value.tagName.toLowerCase()}${selectedElementInfo.value.id ? ' id="' + selectedElementInfo.value.id + '"' : ''}${selectedElementInfo.value.className ? ' class="' + selectedElementInfo.value.className + '"' : ''}>`
     if (selectedElementInfo.value.textContent) {
-      elementContext += `\n- 当前内容: ${selectedElementInfo.value.textContent.substring(0, 100)}`
+      elementContext += `\n当前文本: "${selectedElementInfo.value.textContent.trim()}"`
     }
+    elementContext += `\n选择器: ${selectedElementInfo.value.selector}`
     message += elementContext
   }
   userInput.value = ''
@@ -561,7 +564,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     let fullContent = ''
 
-    // 60秒无数据超时
+    // 120秒无数据超时（VUE3非流式生成一次API调用可能耗时较长）
     const resetTimeout = () => {
       if (timeoutTimer) clearTimeout(timeoutTimer)
       timeoutTimer = setTimeout(() => {
@@ -570,7 +573,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           clearStream()
           handleError(new Error('SSE 响应超时，请重试'), aiMessageIndex)
         }
-      }, 60000)
+      }, 120000)
     }
     resetTimeout()
 
@@ -641,13 +644,34 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       retryCount++
       console.warn(`[SSE] 连接错误 (第${retryCount}次), readyState=${eventSource?.readyState}`)
 
-      // EventSource 会自动重连（readyState=0 CONNECTING），只在彻底关闭时显示错误
       if (eventSource?.readyState === EventSource.CLOSED) {
-        console.error('[SSE] 连接已关闭，停止重试')
-        clearStream()
-        handleError(new Error('SSE 连接失败，请检查后端服务'), aiMessageIndex)
+        // 流关闭：如果已收到内容则视为正常完成，否则报错
+        if (fullContent) {
+          console.log('[SSE] 流关闭但已有内容，视为完成')
+          clearStream()
+          setTimeout(async () => {
+            await fetchAppInfo()
+            updatePreview()
+          }, 1000)
+        } else {
+          console.error('[SSE] 连接已关闭且无内容')
+          clearStream()
+          handleError(new Error('SSE 连接失败，请检查后端服务'), aiMessageIndex)
+        }
+      } else if (retryCount >= 3) {
+        // 重连超过3次，放弃等待，若已有内容视为部分完成
+        console.warn('[SSE] 重连次数过多，放弃等待')
+        if (fullContent) {
+          clearStream()
+          setTimeout(async () => {
+            await fetchAppInfo()
+            updatePreview()
+          }, 1000)
+        } else {
+          clearStream()
+          handleError(new Error('SSE 连接失败，请重试'), aiMessageIndex)
+        }
       }
-      // readyState === CONNECTING 时浏览器会自动重连，不干预
     }
   } catch (error) {
     console.error('[SSE] 创建连接失败：', error)
@@ -742,7 +766,7 @@ const viewCodeFile = (path: string) => {
 const stopGeneration = async () => {
   if (!appId.value) return
   try {
-    await cancelGenCode({ appId: Number(appId.value) })
+    await cancelGenCode({ appId: appId.value as unknown as number })
     message.info('已发送停止信号')
   } catch {
     message.error('停止失败')
@@ -753,7 +777,7 @@ const undeployApp = async () => {
   if (!appId.value) return
   undeploying.value = true
   try {
-    const res = await undeployAppApi({ appId: Number(appId.value) })
+    const res = await undeployAppApi({ appId: appId.value as unknown as number })
     if (res.data.code === 0) {
       message.success('已下线')
       await fetchAppInfo()
@@ -774,7 +798,7 @@ const deployApp = async () => {
   deploying.value = true
   try {
     const res = await deployAppApi({
-      appId: Number(appId.value),
+      appId: appId.value as unknown as number,
     })
 
     if (res.data.code === 0 && res.data.data) {
@@ -986,13 +1010,14 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
-  background: var(--bg-card);
-  border-radius: 12px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(var(--primary-color-rgb), 0.04) 100%);
+  border-radius: 14px;
   border: 1px solid var(--border-color);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   flex-shrink: 0;
-  min-height: 48px;
+  min-height: 52px;
+  backdrop-filter: blur(8px);
 }
 
 .header-left {
@@ -1117,15 +1142,20 @@ onUnmounted(() => {
 }
 
 .empty-icon {
-  font-size: 48px;
+  font-size: 56px;
   margin-bottom: 16px;
+  animation: floatIcon 3s ease-in-out infinite;
 }
 
 .empty-chat h3 {
   margin: 0 0 8px;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-color);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .empty-chat p {
@@ -1138,6 +1168,12 @@ onUnmounted(() => {
 /* 消息 */
 .message-item {
   margin-bottom: 14px;
+  animation: messageIn 0.35s ease-out;
+}
+
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .user-message {
@@ -1162,6 +1198,7 @@ onUnmounted(() => {
   word-wrap: break-word;
   overflow-wrap: break-word;
   font-size: 13px;
+  transition: box-shadow 0.2s;
 }
 
 .user-message .message-content {
@@ -1171,28 +1208,58 @@ onUnmounted(() => {
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
+.user-message:hover .message-content {
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
 .ai-message .message-content {
   background: var(--bg-page);
   color: var(--text-color);
   border-bottom-left-radius: 6px;
   border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ai-message:hover .message-content {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .ai-message .message-content :deep(pre) {
-  background: var(--bg-card);
+  background: #1e293b;
+  color: #e2e8f0;
   border-radius: 8px;
-  padding: 12px;
+  padding: 12px 16px;
   overflow-x: auto;
   font-size: 13px;
+  margin: 8px 0;
 }
 
 .ai-message .message-content :deep(code) {
   font-size: 13px;
 }
 
+.ai-message .message-content :deep(p) {
+  margin: 0;
+}
+
+.ai-message .message-content :deep(p + p) {
+  margin-top: 6px;
+}
+
+.ai-message .message-content :deep(ul),
+.ai-message .message-content :deep(ol) {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
 .message-avatar {
   flex-shrink: 0;
   margin-top: 2px;
+  transition: transform 0.2s;
+}
+
+.message-item:hover .message-avatar {
+  transform: scale(1.05);
 }
 
 .message-avatar :deep(.ant-avatar) {
@@ -1207,12 +1274,18 @@ onUnmounted(() => {
   color: var(--text-secondary);
   padding: 6px 0;
   font-size: 14px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
 }
 
 /* 输入区 */
 .input-container {
-  padding: 10px 14px;
-  background: var(--bg-header);
+  padding: 12px 16px;
+  background: linear-gradient(180deg, var(--bg-header) 0%, var(--bg-card) 100%);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -1220,19 +1293,28 @@ onUnmounted(() => {
 .input-wrapper {
   display: flex;
   flex-direction: column;
+  background: var(--bg-page);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  transition: all 0.25s;
+}
+
+.input-wrapper:focus-within {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.06);
 }
 
 .chat-input:deep(.ant-input) {
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-page);
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
   color: var(--text-color);
   font-size: 13px;
   line-height: 1.6;
-  padding: 8px 12px;
+  padding: 4px 0;
   resize: none;
-  transition: all 0.25s;
-  min-height: 44px;
+  min-height: 36px;
   max-height: 120px;
 }
 
@@ -1241,9 +1323,7 @@ onUnmounted(() => {
 }
 
 .chat-input:deep(.ant-input):focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
-  background: var(--bg-card);
+  box-shadow: none !important;
 }
 
 .input-footer {
@@ -1251,6 +1331,8 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
 }
 
 .char-count {
@@ -1260,16 +1342,20 @@ onUnmounted(() => {
 
 .send-btn {
   border-radius: 8px;
-  font-weight: 500;
-  padding: 4px 16px;
-  height: 32px;
+  font-weight: 600;
+  padding: 4px 18px;
+  height: 34px;
   font-size: 13px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  border: none;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
   transition: all 0.25s;
 }
 
 .send-btn:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
 }
 
 /* ====== 右侧预览区 ====== */
@@ -1329,24 +1415,30 @@ onUnmounted(() => {
   height: 100%;
   color: var(--text-secondary);
   padding: 40px 20px;
+  background: radial-gradient(ellipse at center, rgba(var(--primary-color-rgb), 0.03) 0%, transparent 70%);
 }
 
 .placeholder-icon {
-  font-size: 60px;
+  font-size: 64px;
   margin-bottom: 20px;
   animation: floatIcon 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.15));
 }
 
 @keyframes floatIcon {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+  50% { transform: translateY(-14px); }
 }
 
 .preview-placeholder h3 {
   margin: 0 0 8px;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text-color);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .preview-placeholder p {
@@ -1357,7 +1449,7 @@ onUnmounted(() => {
 .placeholder-hints {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   font-size: 13px;
   color: var(--text-secondary);
 }
@@ -1366,6 +1458,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 6px 14px;
+  background: rgba(var(--primary-color-rgb), 0.04);
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+
+.placeholder-hints span:hover {
+  background: rgba(var(--primary-color-rgb), 0.08);
+  transform: translateX(4px);
 }
 
 .placeholder-hints :deep(.anticon) {
@@ -1379,17 +1480,20 @@ onUnmounted(() => {
   justify-content: center;
   height: 100%;
   color: var(--text-secondary);
+  background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.04) 0%, transparent 70%);
 }
 
 .preview-loading p {
-  margin: 18px 0 4px;
+  margin: 20px 0 6px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--text-color);
 }
 
 .loading-sub {
   font-size: 13px;
   color: var(--text-secondary);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 .preview-iframe {
@@ -1411,46 +1515,92 @@ onUnmounted(() => {
   color: #fff !important;
 }
 
-/* 选中元素提示 */
-.selected-element-alert {
+/* 选中元素提示条 */
+.selected-element-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 14px 4px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #e6f4ff 0%, #f0f5ff 100%);
+  border: 1px solid #91caff;
+  border-radius: 10px;
+  font-size: 13px;
+  gap: 12px;
 }
 
-.element-info {
-  line-height: 1.5;
+.element-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.element-tag-line {
-  margin-bottom: 4px;
-}
-
-.element-tag-label {
+.element-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 5px;
   font-weight: 600;
-  color: #1890ff;
-}
-
-.element-id {
-  color: #52c41a;
-  margin-left: 4px;
-}
-
-.element-class {
-  color: #faad14;
-  margin-left: 4px;
-}
-
-.element-selector {
   font-size: 12px;
-  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  background: #1890ff;
+  color: #fff;
+  white-space: nowrap;
 }
 
-.element-selector code {
-  font-family: 'Monaco', 'Menlo', monospace;
-  background: #f6f8fa;
-  padding: 1px 4px;
-  border-radius: 3px;
+.element-badge.badge-a { background: #1890ff; }
+.element-badge.badge-div { background: #722ed1; }
+.element-badge.badge-span { background: #13c2c2; }
+.element-badge.badge-button,
+.element-badge.badge-btn { background: #52c41a; }
+.element-badge.badge-p { background: #fa8c16; }
+.element-badge.badge-h1,
+.element-badge.badge-h2,
+.element-badge.badge-h3,
+.element-badge.badge-h4,
+.element-badge.badge-h5,
+.element-badge.badge-h6 { background: #eb2f96; }
+.element-badge.badge-img { background: #fa541c; }
+.element-badge.badge-input,
+.element-badge.badge-textarea { background: #2f54eb; }
+.element-badge.badge-ul,
+.element-badge.badge-ol,
+.element-badge.badge-li { background: #7cb305; }
+.element-badge.badge-nav,
+.element-badge.badge-header,
+.element-badge.badge-footer,
+.element-badge.badge-section { background: #597ef7; }
+
+.element-id-badge {
+  color: #389e0d;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+}
+
+.element-class-badge {
+  color: #8c8c8c;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
   font-size: 11px;
-  color: #d73a49;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.element-text-preview {
+  color: #434343;
+  font-style: italic;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.element-bar-right {
+  flex-shrink: 0;
 }
 
 /* ====== 响应式 ====== */

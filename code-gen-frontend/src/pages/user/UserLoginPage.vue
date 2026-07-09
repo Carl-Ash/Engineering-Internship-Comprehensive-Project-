@@ -79,9 +79,10 @@ const handleSubmit = async (values: any) => {
   justify-content: center;
   padding: 24px;
   background:
-    var(--bg-page),
-    radial-gradient(circle at 20% 80%, rgba(var(--primary-color-rgb), 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+    linear-gradient(rgba(248, 250, 252, 0.88), rgba(248, 250, 252, 0.88)),
+    url('../../assets/backgrounds/auth-bg.png') center/cover no-repeat,
+    radial-gradient(circle at 20% 80%, rgba(var(--primary-color-rgb), 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
 }
 
 .login-card {

@@ -27,6 +27,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -37,6 +38,15 @@ import com.carl.codegen.service.AppService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -79,6 +89,9 @@ public class AppController {
         User loginUser = userService.getLoginUser(request);
         Flux<String> codeFlux = appService.chatToGenCode(appId, message, loginUser);
         return codeFlux.map(chunk -> {
+                    if ("\n__hb__".equals(chunk)) {
+                        return ServerSentEvent.<String>builder().comment("hb").build();
+                    }
                     Map<String, String> wrapper = Map.of("v", chunk);
                     String data = JSONUtil.toJsonStr(wrapper);
                     return ServerSentEvent.<String>builder().data(data).build();
@@ -106,8 +119,9 @@ public class AppController {
             "image/jpeg", "image/png", "image/gif", "image/webp"
     );
     private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    private static final int AVATAR_MAX_SIZE = 512; // 压缩后最大边长
 
-    /** 上传图片到 COS */
+    /** 上传图片到 COS（自动压缩） */
     @PostMapping("/upload/image")
     public BaseResponse<String> uploadImage(@RequestParam("file") MultipartFile file,
                                             HttpServletRequest request) {
@@ -119,24 +133,51 @@ public class AppController {
                 ErrorCode.PARAMS_ERROR, "文件大小不能超过 5MB");
         User loginUser = userService.getLoginUser(request);
         try {
-            String originalName = file.getOriginalFilename();
-            String ext = "";
-            if (originalName != null && originalName.contains(".")) {
-                ext = originalName.substring(originalName.lastIndexOf('.'));
-            }
+            // 统一输出为 jpg，压缩到 512px 以内
+            Path tmpPath = Path.of(System.getProperty("java.io.tmpdir"), "upload_" + UUID.randomUUID() + ".jpg");
+            compressImage(file, tmpPath.toFile(), AVATAR_MAX_SIZE);
             LocalDate today = LocalDate.now();
-            String key = String.format("/uploads/%d/%02d/%02d/%s%s",
+            String key = String.format("/uploads/%d/%02d/%02d/%s.jpg",
                     today.getYear(), today.getMonthValue(), today.getDayOfMonth(),
-                    UUID.randomUUID().toString().substring(0, 8), ext);
-            Path tmpPath = Path.of(System.getProperty("java.io.tmpdir"), "upload_" + UUID.randomUUID() + ext);
-            Files.copy(file.getInputStream(), tmpPath);
+                    UUID.randomUUID().toString().substring(0, 8));
             String url = cosManager.uploadFile(key, tmpPath.toFile());
             try { Files.delete(tmpPath); } catch (IOException ignored) {}
             ThrowUtils.throwIf(url == null, ErrorCode.SYSTEM_ERROR, "图片上传失败");
-            log.info("用户 {} 上传图片成功: {}", loginUser.getId(), url);
+            log.info("用户 {} 上传图片成功 (压缩后): {}", loginUser.getId(), url);
             return ResultUtils.success(url);
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片上传失败: " + e.getMessage());
+        }
+    }
+
+    /** 压缩图片：缩放到 maxSize 以内，JPEG 质量 0.85 */
+    private void compressImage(MultipartFile file, File dest, int maxSize) throws IOException {
+        BufferedImage original = ImageIO.read(file.getInputStream());
+        if (original == null) {
+            throw new IOException("无法解析图片文件");
+        }
+        int w = original.getWidth();
+        int h = original.getHeight();
+        if (w > maxSize || h > maxSize) {
+            double scale = Math.min((double) maxSize / w, (double) maxSize / h);
+            w = (int) (w * scale);
+            h = (int) (h * scale);
+            BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = scaled.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.drawImage(original, 0, 0, w, h, null);
+            g.dispose();
+            original = scaled;
+        }
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(dest)) {
+            writer.setOutput(ios);
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(0.85f);
+            writer.write(null, new IIOImage(original, null, null), param);
+            writer.dispose();
         }
     }
 
@@ -153,6 +194,7 @@ public class AppController {
 
     /** 删除应用（用户只能删除自己的应用） */
     @PostMapping("/delete")
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> deleteApp(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -172,6 +214,7 @@ public class AppController {
 
     /** 更新应用（用户只能更新自己的应用名称和可见范围） */
     @PostMapping("/update")
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> updateApp(@RequestBody AppUpdateRequest appUpdateRequest, HttpServletRequest request) {
         if (appUpdateRequest == null || appUpdateRequest.getId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -333,6 +376,7 @@ public class AppController {
     /** 管理员删除应用 */
     @PostMapping("/admin/delete")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> deleteAppByAdmin(@RequestBody DeleteRequest deleteRequest) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -348,6 +392,7 @@ public class AppController {
     /** 管理员更新应用 */
     @PostMapping("/admin/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> updateAppByAdmin(@RequestBody AppAdminUpdateRequest appAdminUpdateRequest) {
         if (appAdminUpdateRequest == null || appAdminUpdateRequest.getId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);

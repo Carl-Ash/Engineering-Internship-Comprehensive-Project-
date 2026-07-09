@@ -213,7 +213,7 @@ const fetchData = async () => {
     const res = await api(params)
     if (res.data.code === 0 && res.data.data) {
       data.value = res.data.data.records ?? []
-      total.value = res.data.data.totalRow ?? 0
+      total.value = Number(res.data.data.totalRow) || 0
     } else {
       message.error('获取数据失败，' + res.data.message)
     }
@@ -271,7 +271,7 @@ const doDelete = async (id: number | string | undefined) => {
   if (!id) return
   try {
     const api = isAdmin.value ? deleteAppByAdmin : deleteApp
-    const res = await api({ id: Number(id) })
+    const res = await api({ id: id as unknown as number })
     if (res.data.code === 0) {
       message.success('删除成功')
       fetchData()

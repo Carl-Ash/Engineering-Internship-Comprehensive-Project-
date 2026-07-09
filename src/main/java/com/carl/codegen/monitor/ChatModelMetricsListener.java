@@ -35,12 +35,15 @@ public class ChatModelMetricsListener implements ChatModelListener {
      */
     @Override
     public void onRequest(ChatModelRequestContext requestContext) {
-        // 快照开始时间，用于 onResponse / onError 时计算耗时
         requestContext.attributes().put(REQUEST_START_KEY, Instant.now());
 
-        // 从 ThreadLocal 取出业务上下文，存入 attributes。因为 onResponse / onError 可能在其他线程执行
         MonitorContext context = MonitorContextHolder.getContext();
         requestContext.attributes().put(MONITOR_CONTEXT_KEY, context);
+
+        if (context == null) {
+            log.debug("MonitorContext 为空，跳过 onRequest 指标记录");
+            return;
+        }
 
         String userId = context.getUserId();
         String appId = context.getAppId();
@@ -54,17 +57,18 @@ public class ChatModelMetricsListener implements ChatModelListener {
      */
     @Override
     public void onResponse(ChatModelResponseContext responseContext) {
-        Map<Object, Object> attributes = responseContext.attributes();
-        // 从 attributes 取回 onRequest 时存入的上下文（可能跨线程）
-        MonitorContext context = (MonitorContext) attributes.get(MONITOR_CONTEXT_KEY);
+        MonitorContext context = resolveContext(responseContext.attributes());
+        if (context == null) {
+            log.debug("MonitorContext 为空，跳过 onResponse 指标记录");
+            return;
+        }
 
         String userId = context.getUserId();
         String appId = context.getAppId();
         String modelName = responseContext.chatResponse().modelName();
 
-        // 记录请求成功，响应时间，Token 消耗
         metricsCollector.incrementRequestCount(userId, appId, modelName, "success");
-        recordLatency(attributes, userId, appId, modelName);
+        recordLatency(responseContext.attributes(), userId, appId, modelName);
         recordTokenCounts(responseContext, userId, appId, modelName);
     }
 
@@ -73,22 +77,22 @@ public class ChatModelMetricsListener implements ChatModelListener {
      */
     @Override
     public void onError(ChatModelErrorContext errorContext) {
-        // 从监控上下文获取用户 ID、应用 ID、模型名称（可能跨线程）
-        MonitorContext context = MonitorContextHolder.getContext();
+        MonitorContext context = resolveContext(errorContext.attributes());
+        if (context == null) {
+            log.debug("MonitorContext 为空，跳过 onError 指标记录");
+            return;
+        }
+
         String userId = context.getUserId();
         String appId = context.getAppId();
         String modelName = errorContext.chatRequest().modelName();
 
-        // 拿到错误消息的简短描述，避免带堆栈的完整信息进入标签
         String errorMessage = errorContext.error().getMessage();
 
-        // 记录请求失败
         metricsCollector.incrementRequestCount(userId, appId, modelName, "error");
         metricsCollector.incrementErrorCount(userId, appId, modelName, errorMessage);
 
-        // 失败的请求同样记录耗时，便于分析超时等性能问题
-        Map<Object, Object> attributes = errorContext.attributes();
-        recordLatency(attributes, userId, appId, modelName);
+        recordLatency(errorContext.attributes(), userId, appId, modelName);
     }
 
     /**
@@ -100,6 +104,17 @@ public class ChatModelMetricsListener implements ChatModelListener {
             Duration latency = Duration.between(start, Instant.now());
             metricsCollector.recordLatency(userId, appId, modelName, latency);
         }
+    }
+
+    /**
+     * 从 attributes 或 ThreadLocal 中解析 MonitorContext，优先使用 attributes。
+     */
+    private MonitorContext resolveContext(Map<Object, Object> attributes) {
+        MonitorContext context = (MonitorContext) attributes.get(MONITOR_CONTEXT_KEY);
+        if (context != null) {
+            return context;
+        }
+        return MonitorContextHolder.getContext();
     }
 
     /**
