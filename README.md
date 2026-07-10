@@ -328,12 +328,67 @@ cd code-gen-frontend && pnpm install && pnpm dev
 
 ---
 
-## 八、答辩要点建议
+## 八、复现项目步骤
 
-| 时间 | 内容 | 要点 |
-|------|------|------|
-| 0-2min | **项目背景** | AI 时代低代码/零代码趋势，降低非技术人员开发门槛 |
-| 2-4min | **技术架构** | 展示架构全景图，强调 LangChain4j + 智能路由 + SSE 流式交互 |
-| 4-6min | **核心流程** | 详解 AI 路由选型 → 门面编排 → 工具调用 → 流式输出 → 一键部署 |
-| 6-8min | **创新亮点** | AI 智能路由降本增效 / AI Agent 工具调用 / 护轨双层安全 / 自研可观测性 / 代码混淆引擎（科研成果）/ 可视化编辑 / SSE 工具透明化 |
-| 8-10min | **成果展示** | 现场演示：自然语言生成完整应用 → 工具调用透明化过程 → 混淆引擎效果 → Grafana 监控看板，讨论扩展方向 |
+### 1. 克隆项目
+
+```bash
+git clone git@github.com:Carl-Ash/Engineering-Internship-Comprehensive-Project-.git
+cd code-gen
+```
+
+### 2. 环境准备
+
+确保本地已安装以下环境：
+
+- JDK 21+
+- Maven 3.8+
+- Node.js 20+ / pnpm
+- MySQL 8.0+
+- Docker & Docker Compose
+
+### 3. 初始化数据库
+
+```bash
+mysql -u root -p < sql/create_table.sql
+```
+
+### 4. 启动基础设施
+
+```bash
+cd monitoring && docker-compose up -d
+```
+
+启动 Redis、Prometheus、Grafana 容器。
+
+### 5. 配置 API Key
+
+在 `src/main/resources/` 下创建 `application-local.yml`，配置大模型 API Key：
+
+```yaml
+langchain4j:
+  openai:
+    api-key: your-api-key
+```
+
+### 6. 启动后端
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+### 7. 启动前端
+
+```bash
+cd code-gen-frontend && pnpm install && pnpm dev
+```
+
+### 8. 访问系统
+
+| 服务 | 地址 |
+|------|------|
+| 前端页面 | http://localhost:5173 |
+| 后端 API | http://localhost:8080/api |
+| Swagger 文档 | http://localhost:8080/api/doc.html |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin/admin) |
