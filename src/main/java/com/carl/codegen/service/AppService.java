@@ -61,4 +61,9 @@ public interface AppService extends IService<App> {
      * 异步生成应用截图并更新封面
      */
     void generateAppScreenshotAsync(Long appId, String appUrl);
+
+    /**
+     * 版本回退：恢复目标版本代码并重新部署
+     */
+    String rollbackAppVersion(Long appId, Integer targetVersion, User loginUser);
 }

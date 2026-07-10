@@ -18,16 +18,21 @@ public class SimpleTextStreamHandler {
         StringBuilder responseCollector = new StringBuilder();
         return flux
                 .map(chunk -> {
-                    responseCollector.append(chunk);
+                    // 不收集心跳和状态消息，只收集实际AI内容
+                    if (!"\n__hb__".equals(chunk) && !chunk.startsWith("正在生成") && !chunk.contains("生成失败")) {
+                        responseCollector.append(chunk);
+                    }
                     return chunk;
                 })
                 .doOnComplete(() -> {
-                    String aiResponse = responseCollector.toString();
-                    chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    String aiResponse = responseCollector.toString().trim();
+                    if (!aiResponse.isEmpty()) {
+                        chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    }
                 })
                 .doOnError(error -> {
-                    String errorMessage = "AI回复失败: " + error.getMessage();
-                    chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    // 失败时不保存错误信息到对话历史，避免污染上下文
+                    log.warn("流处理出错，不保存到对话历史: {}", error.getMessage());
                 });
     }
 }

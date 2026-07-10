@@ -564,7 +564,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
     let fullContent = ''
 
-    // 120秒无数据超时（VUE3非流式生成一次API调用可能耗时较长）
+    // 600秒无数据超时（非流式生成 + 工具调用一次API可能耗时数分钟）
     const resetTimeout = () => {
       if (timeoutTimer) clearTimeout(timeoutTimer)
       timeoutTimer = setTimeout(() => {
@@ -573,7 +573,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           clearStream()
           handleError(new Error('SSE 响应超时，请重试'), aiMessageIndex)
         }
-      }, 120000)
+      }, 600000)
     }
     resetTimeout()
 
@@ -587,6 +587,13 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
       try {
         const parsed = JSON.parse(event.data)
+
+        // 心跳信号：仅重置超时计时器，不更新内容
+        if (parsed.hb) {
+          resetTimeout()
+          return
+        }
+
         const content = parsed.v
 
         if (content !== undefined && content !== null) {

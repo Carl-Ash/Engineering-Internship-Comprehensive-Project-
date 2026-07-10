@@ -83,7 +83,8 @@ public class AiCodeGenServiceFactory {
     }
 
     /**
-     * 清理 Redis 中可能残留的不完整工具调用序列（如用户取消生成导致）。
+     * 清理 Redis 中可能残留的不完整工具调用序列和状态消息（如用户取消生成导致）。
+     * 清理后驱逐缓存，确保下次请求使用干净的 ChatMemory 实例。
      */
     private void cleanupStaleToolCalls(long appId) {
         try {
@@ -93,9 +94,25 @@ public class AiCodeGenServiceFactory {
                     .chatMemoryStore(redisChatMemoryStore)
                     .maxMessages(200)
                     .build();
+            int before = tempMemory.messages().size();
             chatHistoryService.loadChatHistoryToMemory(appId, tempMemory, 200);
+            int after = tempMemory.messages().size();
+            if (after < before) {
+                log.info("清理了 {} 条异常消息，驱逐 appId: {} 的缓存", before - after, appId);
+                evictServiceCache(appId);
+            }
         } catch (Exception e) {
             log.debug("清理过期工具调用失败，appId: {}, error: {}", appId, e.getMessage());
+        }
+    }
+
+    /**
+     * 驱逐指定 appId 的所有缓存条目（create 和 modify 模式）。
+     */
+    private void evictServiceCache(long appId) {
+        for (CodeGenTypeEnum type : CodeGenTypeEnum.values()) {
+            serviceCache.invalidate(createCacheKey(appId, type, false));
+            serviceCache.invalidate(createCacheKey(appId, type, true));
         }
     }
 
@@ -114,29 +131,39 @@ public class AiCodeGenServiceFactory {
     /**
      * 创建新的 AI 服务实例 — 每次调用获取独立的原型 ChatModel/StreamingChatModel，解决并发阻塞问题
      */
+    /** VUE3 生成涉及多轮工具调用，消息窗口过大时 prompt tokens 会超限 */
+    private static final int VUE_CHAT_MEMORY_MAX_MESSAGES = 40;
+
     private AiCodeGenService createAiCodeGenService(long appId, CodeGenTypeEnum codeGenTypeEnum, boolean isModify) {
         log.info("为 appId: {} 创建新的 AI 服务实例", appId);
-        MessageWindowChatMemory chatMemory = MessageWindowChatMemory
-                .builder()
-                .id(appId)
-                .chatMemoryStore(redisChatMemoryStore)
-                .maxMessages(200)
-                .build();
-        chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 200);
         return switch (codeGenTypeEnum) {
             case HTML, MULTI_FILE -> {
+                MessageWindowChatMemory chatMemory = MessageWindowChatMemory
+                        .builder()
+                        .id(appId)
+                        .chatMemoryStore(redisChatMemoryStore)
+                        .maxMessages(200)
+                        .build();
+                chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 200);
                 StreamingChatModel generalStreamingChatModel = SpringContextUtil.getBean(
                         "generalStreamingChatModel", StreamingChatModel.class);
                 yield AiServices.builder(AiCodeGenService.class)
                         .chatModel(chatModel)
                         .streamingChatModel(generalStreamingChatModel)
-                        .chatMemory(chatMemory)
+                        .chatMemoryProvider(memoryId -> chatMemory)
                         .tools(new FileWriteTool(codeGenTypeEnum.getValue()))
                         .inputGuardrails(new PromptSafetyInputGuardrail())
                         .maxSequentialToolsInvocations(100)
                         .build();
             }
             case VUE3 -> {
+                MessageWindowChatMemory chatMemory = MessageWindowChatMemory
+                        .builder()
+                        .id(appId)
+                        .chatMemoryStore(redisChatMemoryStore)
+                        .maxMessages(VUE_CHAT_MEMORY_MAX_MESSAGES)
+                        .build();
+                chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, VUE_CHAT_MEMORY_MAX_MESSAGES);
                 BaseTool[] tools = toolManager.getAllTools();
                 if (isModify) {
                     tools = Arrays.stream(tools)

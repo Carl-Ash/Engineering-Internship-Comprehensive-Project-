@@ -284,6 +284,60 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     }
 
     @Override
+    public String rollbackAppVersion(Long appId, Integer targetVersion, User loginUser) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(targetVersion == null || targetVersion < 1, ErrorCode.PARAMS_ERROR);
+        App app = this.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR);
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        int currentVersion = app.getVersion() != null ? app.getVersion() : 0;
+        ThrowUtils.throwIf(targetVersion >= currentVersion, ErrorCode.PARAMS_ERROR, "只能回退到更早的版本");
+
+        String codeGenType = app.getCodeGenType();
+        String sourceDirName = codeGenType + "_" + appId;
+        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        String backupDirName = sourceDirName + "_v" + targetVersion;
+        String backupDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + backupDirName;
+        File backupDir = new File(backupDirPath);
+        ThrowUtils.throwIf(!backupDir.exists() || !backupDir.isDirectory(),
+                ErrorCode.NOT_FOUND_ERROR, "版本 " + targetVersion + " 的备份不存在");
+
+        // 删除当前源码目录，从备份恢复
+        File sourceDir = new File(sourceDirPath);
+        if (sourceDir.exists()) {
+            FileUtil.del(sourceDir);
+        }
+        FileUtil.copyContent(backupDir, sourceDir, true);
+        log.info("版本回退: appId={}, {} -> {}, 代码已从 {} 恢复", appId, currentVersion, targetVersion, backupDirPath);
+
+        // 更新版本号
+        App updateApp = new App();
+        updateApp.setId(appId);
+        updateApp.setVersion(targetVersion);
+        this.updateById(updateApp);
+
+        // 如果已部署则重新部署
+        String deployKey = app.getDeployKey();
+        if (StrUtil.isNotBlank(deployKey)) {
+            try {
+                String deployDirPath = AppConstant.CODE_DEPLOY_ROOT_DIR + File.separator + deployKey;
+                File deployDir = new File(deployDirPath);
+                if (deployDir.exists()) {
+                    FileUtil.del(deployDir);
+                }
+                FileUtil.copyContent(sourceDir, deployDir, true);
+                log.info("版本回退后重新部署完成: deployKey={}", deployKey);
+            } catch (Exception e) {
+                log.error("版本回退后重新部署失败: {}", e.getMessage());
+            }
+        }
+
+        return "已回退到版本 " + targetVersion + (StrUtil.isNotBlank(deployKey) ? "，并已重新部署" : "");
+    }
+
+    @Override
     public void generateAppScreenshotAsync(Long appId, String appUrl) {
         Thread.startVirtualThread(() -> {
             try {

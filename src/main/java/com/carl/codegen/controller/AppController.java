@@ -90,7 +90,9 @@ public class AppController {
         Flux<String> codeFlux = appService.chatToGenCode(appId, message, loginUser);
         return codeFlux.map(chunk -> {
                     if ("\n__hb__".equals(chunk)) {
-                        return ServerSentEvent.<String>builder().comment("hb").build();
+                        return ServerSentEvent.<String>builder()
+                                .data("{\"hb\":true}")
+                                .build();
                     }
                     Map<String, String> wrapper = Map.of("v", chunk);
                     String data = JSONUtil.toJsonStr(wrapper);
@@ -272,21 +274,8 @@ public class AppController {
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(targetVersion == null || targetVersion < 1, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
-        App app = appService.getById(appId);
-        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR);
-        if (!app.getUserId().equals(loginUser.getId())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        int currentVersion = app.getVersion() != null ? app.getVersion() : 0;
-        if (targetVersion >= currentVersion) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "只能回退到比当前版本更早的版本");
-        }
-        // 更新当前版本号为目标版本
-        App updateApp = new App();
-        updateApp.setId(appId);
-        updateApp.setVersion(targetVersion);
-        appService.updateById(updateApp);
-        return ResultUtils.success("已回退到版本 " + targetVersion);
+        String result = appService.rollbackAppVersion(appId, targetVersion, loginUser);
+        return ResultUtils.success(result);
     }
 
     // ==================== 下载 ====================

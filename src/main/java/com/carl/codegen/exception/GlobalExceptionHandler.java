@@ -84,9 +84,9 @@ public class GlobalExceptionHandler {
             response.getWriter().write("event: done\ndata: {}\n\n");
             response.getWriter().flush();
             return true;
-        } catch (IOException ioException) {
-            // 写入失败也返回 true，因为已确认是 SSE 请求，避免再走 JSON 响应分支
-            log.error("SSE 错误回写失败", ioException);
+        } catch (IOException | IllegalStateException ex) {
+            // 写入失败：响应已提交或 IO 异常，已确认是 SSE 请求，避免再走 JSON 响应分支
+            log.error("SSE 错误回写失败（响应可能已提交）", ex);
             return true;
         }
     }

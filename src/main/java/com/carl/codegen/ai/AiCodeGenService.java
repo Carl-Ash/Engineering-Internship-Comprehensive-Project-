@@ -1,7 +1,5 @@
 package com.carl.codegen.ai;
 
-import com.carl.codegen.ai.model.HtmlResult;
-import com.carl.codegen.ai.model.MultiFileResult;
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.TokenStream;
@@ -16,15 +14,15 @@ public interface AiCodeGenService {
      * @return 生成的代码
      */
     @SystemMessage(fromResource = "prompt/codegen-html-system-prompt.txt")
-    HtmlResult generateHtmlCode(String prompt);
+    String generateHtmlCode(@MemoryId Long appId, @UserMessage String prompt);
 
     /**
      * 生成多文件代码
      * @param prompt 代码提示
-     * @return 生成的代码
+     * @return AI 最终回复文本
      */
     @SystemMessage(fromResource = "prompt/codegen-multi-file-system-prompt.txt")
-    MultiFileResult generateMultiFileCode(String prompt);
+    String generateMultiFileCode(@MemoryId Long appId, @UserMessage String prompt);
 
     /**
      * 生成HTML代码

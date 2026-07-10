@@ -2,8 +2,10 @@ package com.carl.codegen.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import com.carl.codegen.constant.AppConstant;
 import com.carl.codegen.constant.UserConstant;
 import com.carl.codegen.exception.ErrorCode;
+import com.carl.codegen.model.enums.UserRoleEnum;
 import com.carl.codegen.exception.ThrowUtils;
 import com.carl.codegen.model.dto.chathistory.ChatHistoryQueryRequest;
 import com.carl.codegen.model.entity.App;
@@ -52,7 +54,12 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         // Redis 中已有完整会话上下文（含工具调用），无需从 DB 加载
         if (!chatMemory.messages().isEmpty()) {
             int removed = cleanupIncompleteToolCalls(chatMemory);
-            log.debug("Redis 中已存在 appId: {} 的会话上下文，共 {} 条消息，清理 {} 条不完整工具调用",
+            int filtered = removeStatusMessages(chatMemory);
+            removed += filtered;
+            if (removed > 0) {
+                redisChatMemoryStore.updateMessages(chatMemory.id(), chatMemory.messages());
+            }
+            log.debug("Redis 中已存在 appId: {} 的会话上下文，共 {} 条消息，清理 {} 条异常消息",
                     appId, chatMemory.messages().size(), removed);
             return chatMemory.messages().size();
         }
@@ -71,7 +78,12 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
                     chatMemory.add(UserMessage.from(history.getMessage()));
                     loadedCount++;
                 } else if (ChatHistoryMessageTypeEnum.AI.getValue().equals(history.getMessageType())) {
-                    chatMemory.add(AiMessage.from(history.getMessage()));
+                    // 跳过含状态/错误标记的系统消息，避免污染 AI 上下文
+                    String msg = history.getMessage();
+                    if (msg != null && (msg.startsWith("正在生成") || msg.contains("生成失败"))) {
+                        continue;
+                    }
+                    chatMemory.add(AiMessage.from(msg));
                     loadedCount++;
                 }
             }
@@ -89,9 +101,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
         App app = appService.getById(appId);
         ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
-        boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
-        boolean isCreator = app.getUserId().equals(loginUser.getId());
-        ThrowUtils.throwIf(!isAdmin && !isCreator, ErrorCode.NO_AUTH_ERROR, "无权导出该应用的对话历史");
+        ThrowUtils.throwIf(!canAccessChatHistory(app, loginUser), ErrorCode.NO_AUTH_ERROR, "无权导出该应用的对话历史");
         // 查询所有对话历史，按时间正序
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .eq(ChatHistory::getAppId, appId)
@@ -188,9 +198,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         // 验证权限：只有应用创建者和管理员可以查看
         App app = appService.getById(appId);
         ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
-        boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
-        boolean isCreator = app.getUserId().equals(loginUser.getId());
-        ThrowUtils.throwIf(!isAdmin && !isCreator, ErrorCode.NO_AUTH_ERROR, "无权查看该应用的对话历史");
+        ThrowUtils.throwIf(!canAccessChatHistory(app, loginUser), ErrorCode.NO_AUTH_ERROR, "无权查看该应用的对话历史");
         // 构建查询条件
         ChatHistoryQueryRequest queryRequest = new ChatHistoryQueryRequest();
         queryRequest.setAppId(appId);
@@ -198,6 +206,22 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         QueryWrapper queryWrapper = this.getQueryWrapper(queryRequest);
         // 查询数据
         return this.page(Page.of(1, pageSize), queryWrapper);
+    }
+
+    /**
+     * 检查用户是否有权访问某应用的对话历史。
+     * 公开应用允许所有登录用户查看，私有应用仅允许创建者和管理员。
+     */
+    private boolean canAccessChatHistory(App app, User loginUser) {
+        if (AppConstant.VISIBILITY_PUBLIC.equals(app.getVisibility())) {
+            return true;
+        }
+        boolean isCreator = app.getUserId().equals(loginUser.getId());
+        if (isCreator) {
+            return true;
+        }
+        UserRoleEnum role = UserRoleEnum.getEnumByValue(loginUser.getUserRole());
+        return role != null && role.getLevel() >= UserRoleEnum.ADMIN.getLevel();
     }
 
     /**
@@ -240,6 +264,31 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         }
 
         return initialSize - messages.size();
+    }
+
+    /**
+     * 清理 Redis 聊天记忆中的状态/错误消息（如"正在生成"、"生成失败"）。
+     * 这些消息是 SSE 流式输出时被错误持久化的，留在记忆中会污染 AI 上下文。
+     *
+     * @return 被移除的消息数量
+     */
+    private int removeStatusMessages(MessageWindowChatMemory chatMemory) {
+        List<ChatMessage> messages = chatMemory.messages();
+        int initialSize = messages.size();
+
+        messages.removeIf(msg -> {
+            if (msg instanceof AiMessage aiMsg) {
+                String text = aiMsg.text();
+                return text != null && (text.startsWith("正在生成") || text.contains("生成失败"));
+            }
+            return false;
+        });
+
+        int removed = initialSize - messages.size();
+        if (removed > 0) {
+            log.info("从 Redis 记忆中清理了 {} 条状态/错误消息，appId: {}", removed, chatMemory.id());
+        }
+        return removed;
     }
 
 }

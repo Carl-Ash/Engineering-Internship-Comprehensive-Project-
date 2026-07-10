@@ -38,12 +38,11 @@ public class ChatModelMetricsListener implements ChatModelListener {
         requestContext.attributes().put(REQUEST_START_KEY, Instant.now());
 
         MonitorContext context = MonitorContextHolder.getContext();
-        requestContext.attributes().put(MONITOR_CONTEXT_KEY, context);
-
         if (context == null) {
             log.debug("MonitorContext 为空，跳过 onRequest 指标记录");
             return;
         }
+        requestContext.attributes().put(MONITOR_CONTEXT_KEY, context);
 
         String userId = context.getUserId();
         String appId = context.getAppId();
